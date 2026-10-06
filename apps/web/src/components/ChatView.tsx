@@ -5254,6 +5254,24 @@ export default function ChatView(props: ChatViewProps) {
     },
     [activeThreadRef, openPreview],
   );
+  const openChatGptDots = useCallback(() => {
+    if (!activeThreadRef || !isPreviewSupportedInRuntime()) return;
+    void addBrowserSurface({
+      threadRef: activeThreadRef,
+      openPreview,
+      url: "https://chatgpt.com/dots",
+    }).then((result) => {
+      if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Unable to open ChatGPT dots",
+          description: error instanceof Error ? error.message : "Please try again.",
+        }),
+      );
+    });
+  }, [activeThreadRef, openPreview]);
   const addDiffSurface = useCallback(() => {
     if (!activeThreadRef || !isServerThread || !isGitRepo) return;
     useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
@@ -11556,6 +11574,7 @@ export default function ChatView(props: ChatViewProps) {
           onCopyFilePath={copyRightPanelFilePath}
           onAddBrowser={() => createBrowserSurface()}
           onAddBrowserInProfile={createBrowserSurface}
+          onOpenChatGptDots={openChatGptDots}
           onAddTerminal={addTerminalSurface}
           onAddDiff={addDiffSurface}
           onAddFiles={addFilesSurface}
@@ -11611,6 +11630,7 @@ export default function ChatView(props: ChatViewProps) {
             onCopyFilePath={copyRightPanelFilePath}
             onAddBrowser={() => createBrowserSurface()}
             onAddBrowserInProfile={createBrowserSurface}
+            onOpenChatGptDots={openChatGptDots}
             onAddTerminal={addTerminalSurface}
             onAddDiff={addDiffSurface}
             onAddFiles={addFilesSurface}

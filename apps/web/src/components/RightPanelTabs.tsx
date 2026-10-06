@@ -21,6 +21,7 @@ import {
   FileDiff,
   Files,
   Globe2,
+  Bot,
   Plus,
   TerminalSquare,
 } from "lucide-react";
@@ -117,6 +118,7 @@ interface RightPanelTabsProps {
    * accept the MouseEvent as a profile id.
    */
   onAddBrowserInProfile: (profileId: string) => void;
+  onOpenChatGptDots?: (() => void) | undefined;
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddFiles: () => void;
@@ -313,6 +315,7 @@ function SurfaceMenuItem(props: {
 function RightPanelEmptyState(props: {
   onAddBrowser: () => void;
   onAddBrowserInProfile: (profileId: string) => void;
+  onOpenChatGptDots?: (() => void) | undefined;
   browserProfiles: ReadonlyArray<{ readonly id: string; readonly name: string }>;
   onAddTerminal: () => void;
   onAddDiff: () => void;
@@ -340,6 +343,18 @@ function RightPanelEmptyState(props: {
       disabledReason: SURFACE_UNAVAILABLE_HINTS.browser,
       onClick: props.onAddBrowser,
     },
+    ...(props.onOpenChatGptDots
+      ? [
+          {
+            label: "ChatGPT dots",
+            icon: Bot,
+            shortcut: "C",
+            available: props.browserAvailable,
+            disabledReason: SURFACE_UNAVAILABLE_HINTS.browser,
+            onClick: props.onOpenChatGptDots,
+          },
+        ]
+      : []),
     {
       label: "Terminal",
       icon: TerminalSquare,
@@ -841,6 +856,18 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       disabledReason: SURFACE_DISABLED_REASONS.browser,
       onClick: props.onAddBrowser,
     },
+    ...(props.onOpenChatGptDots
+      ? [
+          {
+            label: "ChatGPT dots",
+            icon: Bot,
+            shortcut: "C",
+            available: props.browserAvailable,
+            disabledReason: SURFACE_DISABLED_REASONS.browser,
+            onClick: props.onOpenChatGptDots,
+          },
+        ]
+      : []),
     {
       label: "Terminal",
       icon: TerminalSquare,
@@ -1364,6 +1391,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           <RightPanelEmptyState
             onAddBrowser={props.onAddBrowser}
             onAddBrowserInProfile={props.onAddBrowserInProfile}
+            onOpenChatGptDots={props.onOpenChatGptDots}
             browserProfiles={browserProfiles}
             onAddTerminal={props.onAddTerminal}
             onAddDiff={props.onAddDiff}

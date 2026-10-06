@@ -7,6 +7,7 @@ import {
   type ScopedThreadRef,
 } from "@t3tools/contracts";
 import { AsyncResult } from "effect/reactivity";
+import * as Cause from "effect/Cause";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -79,5 +80,49 @@ describe("addBrowserSurface", () => {
         threadRef,
       ).surfaces.map((surface) => surface.id),
     ).toEqual(["browser:tab-1", "browser:tab-2"]);
+  });
+
+  it("opens dots in its own tab without navigating an existing browser tab", async () => {
+    const first = snapshot("tab-1");
+    applyPreviewServerSnapshot(threadRef, first);
+    useRightPanelStore.getState().openBrowser(threadRef, first.tabId);
+    const openPreview = vi.fn(async (_input: PreviewOpenInput) =>
+      AsyncResult.success(snapshot("tab-2")),
+    );
+
+    await addBrowserSurface({
+      threadRef,
+      openPreview: ({ input }) => openPreview(input),
+      url: "https://chatgpt.com/dots",
+    });
+
+    expect(openPreview).toHaveBeenCalledExactlyOnceWith({
+      threadId: "thread-1",
+      url: "https://chatgpt.com/dots",
+      viewport: FILL_PREVIEW_VIEWPORT,
+      profileId: DEFAULT_BROWSER_PROFILE_ID,
+    });
+    expect(readThreadPreviewState(threadRef).sessions["tab-1"]).toEqual(first);
+    const panel = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, threadRef);
+    expect(panel.surfaces.map((surface) => surface.id)).toEqual(["browser:tab-1", "browser:tab-2"]);
+    expect(panel.activeSurfaceId).toBe("browser:tab-2");
+  });
+
+  it("leaves the active panel unchanged when opening dots fails", async () => {
+    const first = snapshot("tab-1");
+    applyPreviewServerSnapshot(threadRef, first);
+    useRightPanelStore.getState().openBrowser(threadRef, first.tabId);
+    const before = useRightPanelStore.getState();
+    const failure = new Error("Browser unavailable");
+
+    const result = await addBrowserSurface({
+      threadRef,
+      openPreview: async () => AsyncResult.failure(Cause.fail(failure)),
+      url: "https://chatgpt.com/dots",
+    });
+
+    expect(result._tag).toBe("Failure");
+    expect(useRightPanelStore.getState()).toBe(before);
+    expect(Object.keys(readThreadPreviewState(threadRef).sessions)).toEqual(["tab-1"]);
   });
 });
