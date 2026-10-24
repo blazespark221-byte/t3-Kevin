@@ -155,6 +155,12 @@ the intended remote with `git branch --set-upstream-to=<remote>/<branch>`.
 Choose the writing style and model in **Settings → Source Control**. **Repository conventions**
 uses the project's instructions and recent commit subjects.
 
+The one-click **Commit & push** and **Commit, push & PR** buttons hand the work to an agent in a
+background thread on the same checkout, using the thread's model and your writing style. The
+thread archives itself once the branch is pushed. If the agent stops early or leaves commits
+unpushed, the thread stays open so you can see why. To commit with your own message or only some
+files, use **Commit** instead.
+
 ## Review and merge
 
 Open **Pull requests** to review changes and comments, request reviewers, check out a branch,

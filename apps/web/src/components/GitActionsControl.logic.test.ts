@@ -3,6 +3,7 @@ import { assert, describe, it } from "vite-plus/test";
 import {
   buildMenuItems,
   requiresDefaultBranchConfirmation,
+  resolveCommitPushTaskAction,
   resolveAutoFeatureBranchName,
   resolveLiveThreadBranchUpdate,
   resolveQuickAction,
@@ -138,6 +139,50 @@ describe("requiresDefaultBranchConfirmation", () => {
     assert.isTrue(requiresDefaultBranchConfirmation("commit_push_pr", true));
     assert.isFalse(requiresDefaultBranchConfirmation("commit_push", false));
     assert.isFalse(requiresDefaultBranchConfirmation("push", false));
+  });
+});
+
+describe("resolveCommitPushTaskAction", () => {
+  const oneClick = {
+    hasWorkingTreeChanges: true,
+    canLaunchThreads: true,
+    featureBranch: false,
+  } as const;
+
+  it("hands one-click commit-and-push with changes to an agent task", () => {
+    assert.equal(
+      resolveCommitPushTaskAction({ ...oneClick, action: "commit_push" }),
+      "commit_push",
+    );
+    assert.equal(
+      resolveCommitPushTaskAction({ ...oneClick, action: "commit_push_pr" }),
+      "commit_push_pr",
+    );
+  });
+
+  it("keeps the direct path when there is nothing for an agent to decide", () => {
+    // A clean default ref still labels a bare push as commit_push.
+    assert.isNull(
+      resolveCommitPushTaskAction({
+        ...oneClick,
+        action: "commit_push",
+        hasWorkingTreeChanges: false,
+      }),
+    );
+    assert.isNull(resolveCommitPushTaskAction({ ...oneClick, action: "push" }));
+    assert.isNull(resolveCommitPushTaskAction({ ...oneClick, action: "commit" }));
+    assert.isNull(
+      resolveCommitPushTaskAction({ ...oneClick, action: "commit_push", commitMessage: "fix" }),
+    );
+    assert.isNull(
+      resolveCommitPushTaskAction({ ...oneClick, action: "commit_push", filePaths: ["a.ts"] }),
+    );
+    assert.isNull(
+      resolveCommitPushTaskAction({ ...oneClick, action: "commit_push", featureBranch: true }),
+    );
+    assert.isNull(
+      resolveCommitPushTaskAction({ ...oneClick, action: "commit_push", canLaunchThreads: false }),
+    );
   });
 });
 

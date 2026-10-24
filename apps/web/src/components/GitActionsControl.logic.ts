@@ -1,4 +1,5 @@
 import type {
+  GitCommitPushTaskAction,
   GitRunStackedActionResult,
   GitStackedAction,
   VcsStatusResult,
@@ -334,6 +335,26 @@ export function resolveQuickAction(
     kind: "show_hint",
     hint: "Branch is up to date. No action needed.",
   };
+}
+
+/**
+ * The one-click commit-and-push hands the commit to an agent task, which
+ * decides what to stage and how to describe it. A bare push, a hand-written
+ * message, a file selection, or a new branch keeps the direct path, and so does
+ * a connection that cannot start threads.
+ */
+export function resolveCommitPushTaskAction(input: {
+  readonly action: GitStackedAction;
+  readonly hasWorkingTreeChanges: boolean;
+  readonly canLaunchThreads: boolean;
+  readonly commitMessage?: string | undefined;
+  readonly filePaths?: ReadonlyArray<string> | undefined;
+  readonly featureBranch: boolean;
+}): GitCommitPushTaskAction | null {
+  if (input.action !== "commit_push" && input.action !== "commit_push_pr") return null;
+  if (!input.hasWorkingTreeChanges || !input.canLaunchThreads || input.featureBranch) return null;
+  if (input.commitMessage || input.filePaths) return null;
+  return input.action;
 }
 
 export function requiresDefaultBranchConfirmation(

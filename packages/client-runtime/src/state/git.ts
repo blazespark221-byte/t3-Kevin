@@ -19,5 +19,9 @@ export function createGitEnvironmentAtoms<R, E>(
       scheduler: vcsCommandScheduler,
       concurrency: vcsCommandConcurrency,
     }),
+    launchCommitPushTask: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:git:launch-commit-push-task",
+      tag: WS_METHODS.gitLaunchCommitPushTask,
+    }),
   };
 }

@@ -201,6 +201,7 @@ import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
 import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
+import * as GitAgentTaskService from "./git/GitAgentTaskService.ts";
 import { refreshPushedPullRequests } from "./git/refreshPushedPullRequests.ts";
 import { linkCreatedPullRequest } from "./git/linkCreatedPullRequest.ts";
 import * as ReviewService from "./review/ReviewService.ts";
@@ -1297,6 +1298,7 @@ export const layerWsRpc = (
       const remoteOpenTargets = yield* RemoteOpenTargets.RemoteOpenTargets;
       const directEndpoints = yield* DirectEndpoints.DirectEndpoints;
       const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
+      const gitAgentTasks = yield* GitAgentTaskService.GitAgentTaskService;
       const review = yield* ReviewService.ReviewService;
       const vcsProvisioning = yield* VcsProvisioningService.VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
@@ -2902,6 +2904,21 @@ export const layerWsRpc = (
                     ),
                 }),
               ),
+          ),
+        [WS_METHODS.gitLaunchCommitPushTask]: (input) =>
+          startup.enqueueCommand(gitAgentTasks.launchCommitPushTask(input)).pipe(
+            Effect.mapError(
+              (cause) =>
+                new OrchestrationV2ThreadLaunchError({
+                  commandId: input.commandId,
+                  projectId: input.projectId,
+                  message:
+                    cause._tag === "ThreadManagementProviderInstanceDisabledError"
+                      ? cause.message
+                      : "Failed to start the commit task",
+                  cause,
+                }),
+            ),
           ),
         [WS_METHODS.gitResolvePullRequest]: (input) => gitWorkflow.resolvePullRequest(input),
         [WS_METHODS.gitPreparePullRequestThread]: (input) =>
