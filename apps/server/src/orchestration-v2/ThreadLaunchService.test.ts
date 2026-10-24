@@ -992,6 +992,43 @@ it.effect("launches a chat into its own Scratch folder and keeps it a chat", () 
   }).pipe(Effect.provide(harness.layer));
 });
 
+it.effect("skips the setup script for a thread joining a checkout that is already set up", () => {
+  const harness = makeHarness();
+  const existingCheckout = {
+    type: "existing_worktree" as const,
+    worktreePath: "/repo-worktrees/feature",
+    branch: "feature",
+  };
+  return Effect.gen(function* () {
+    const launches = yield* ThreadLaunch.ThreadLaunchService;
+    const joined = yield* launches.launch({
+      ...launchInput({
+        command: "command:launch:skip-setup",
+        thread: "thread:launch:skip-setup",
+        message: "Commit and push",
+        workspace: existingCheckout,
+      }),
+      runSetupScript: false,
+    });
+    const skipped = yield* preparationSettled(joined.threadId);
+    assert.equal(skipped.runs[0]?.status, "starting");
+    assert.equal(skipped.thread.worktreePath, "/repo-worktrees/feature");
+    assert.equal(harness.runSetup.mock.calls.length, 0);
+
+    const fresh = yield* launches.launch(
+      launchInput({
+        command: "command:launch:default-setup",
+        thread: "thread:launch:default-setup",
+        message: "Keep going",
+        workspace: existingCheckout,
+      }),
+    );
+    yield* preparationSettled(fresh.threadId);
+    assert.equal(harness.runSetup.mock.calls.length, 1);
+    assert.equal(harness.runSetup.mock.calls[0]?.[0]?.threadId, fresh.threadId);
+  }).pipe(Effect.provide(harness.layer));
+});
+
 it.effect("stores a Scratch scheduled task at the root and keeps worktrees elsewhere", () => {
   const harness = scratchHarness();
   return Effect.gen(function* () {

@@ -87,6 +87,12 @@ export interface ThreadLaunchInput {
   readonly interactionMode: ProviderInteractionMode;
   readonly threadKind?: OrchestrationV2ThreadKind | undefined;
   readonly workspaceStrategy: ThreadLaunchWorkspaceStrategy;
+  /**
+   * `false` skips the project setup script for a thread that joins a checkout
+   * someone already set up. Retried preparation rebuilds its input from the
+   * run and runs setup again.
+   */
+  readonly runSetupScript?: boolean;
   readonly initialMessage?: ThreadLaunchInitialMessage;
   readonly importedNativeThread?: {
     readonly ref: {
@@ -102,7 +108,7 @@ export interface ThreadLaunchInput {
 
 type PreparationInput = Pick<
   ThreadLaunchInput,
-  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage"
+  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage" | "runSetupScript"
 > & {
   readonly reusedWorktree?: { readonly baseRef: string };
 };
@@ -557,7 +563,8 @@ const make = Effect.gen(function* () {
         );
       }
 
-      if (runId !== null && worktreePath !== null) {
+      const runsSetup = worktreePath !== null && input.runSetupScript !== false;
+      if (runId !== null && runsSetup) {
         yield* threads
           .dispatch({
             type: "prepared-run.progress",
@@ -570,7 +577,7 @@ const make = Effect.gen(function* () {
       }
       yield* setupTracker.stageStatus(threadId, "setup-script", "running");
       const setup =
-        worktreePath === null
+        worktreePath === null || !runsSetup
           ? ({ status: "no-script" } as const)
           : yield* setupScripts
               .runForThread({

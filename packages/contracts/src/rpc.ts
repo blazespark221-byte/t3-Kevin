@@ -137,6 +137,8 @@ import {
   VcsRemoveWorktreeInput,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
+  GitLaunchCommitPushTaskInput,
+  GitLaunchCommitPushTaskResult,
   VcsStatusInput,
   VcsStatusSubscriptionInput,
   VcsStatusResult,
@@ -436,6 +438,7 @@ export const WS_METHODS = {
   vcsInit: "vcs.init",
 
   gitRunStackedAction: "git.runStackedAction",
+  gitLaunchCommitPushTask: "git.launchCommitPushTask",
   gitResolvePullRequest: "git.resolvePullRequest",
   gitPreparePullRequestThread: "git.preparePullRequestThread",
 
@@ -1392,6 +1395,12 @@ const WsGitRunStackedActionRpc = Rpc.make(WS_METHODS.gitRunStackedAction, {
   stream: true,
 });
 
+const WsGitLaunchCommitPushTaskRpc = Rpc.make(WS_METHODS.gitLaunchCommitPushTask, {
+  payload: GitLaunchCommitPushTaskInput,
+  success: GitLaunchCommitPushTaskResult,
+  error: Schema.Union([OrchestrationV2ThreadLaunchError, EnvironmentAuthorizationError]),
+});
+
 const WsGitResolvePullRequestRpc = Rpc.make(WS_METHODS.gitResolvePullRequest, {
   payload: GitPullRequestRefInput,
   success: GitResolvePullRequestResult,
@@ -2025,6 +2034,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsPullRpc,
   WsVcsRefreshStatusRpc,
   WsGitRunStackedActionRpc,
+  WsGitLaunchCommitPushTaskRpc,
   WsGitResolvePullRequestRpc,
   WsGitPreparePullRequestThreadRpc,
   WsVcsListRefsRpc,

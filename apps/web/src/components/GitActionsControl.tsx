@@ -3,9 +3,13 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
+  CommandId,
   SourceControlProviderKind,
+  type GitCommitPushTaskAction,
+  type ProjectId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -51,6 +55,7 @@ import {
   type GitQuickAction,
   type DefaultBranchConfirmableAction,
   requiresDefaultBranchConfirmation,
+  resolveCommitPushTaskAction,
   resolveDefaultBranchActionDialogCopy,
   resolveFeatureBranchUnavailableReason,
   resolveGitActionProgressPresentation,
@@ -100,6 +105,7 @@ import {
 } from "~/lib/sourceControlActions";
 import { useThreadProjection, useQuietThreadShell } from "~/state/entities";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
+import { gitEnvironment } from "~/state/git";
 import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
 import { sourceControlEnvironment } from "~/state/sourceControl";
@@ -107,6 +113,7 @@ import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { vcsActionManager, vcsEnvironment } from "~/state/vcs";
 import { randomUUID } from "~/lib/utils";
+import { buildThreadRouteParams } from "~/threadRoutes";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import {
@@ -139,6 +146,7 @@ interface PendingDefaultBranchAction {
   commitMessage?: string;
   onConfirmed?: () => void;
   filePaths?: string[];
+  fromQuickAction?: boolean;
 }
 
 type GitActionToastId = ReturnType<typeof toastManager.add>;
@@ -151,6 +159,12 @@ interface RunGitActionWithToastInput {
   statusOverride?: VcsStatusResult | null;
   featureBranch?: boolean;
   filePaths?: string[];
+  /**
+   * Only the one-click button hands commits to an agent. A retained toast
+   * action runs with the status of the render that created it, which can
+   * still show changes that were committed since.
+   */
+  fromQuickAction?: boolean;
 }
 
 interface InlineGitActionSuccess {
@@ -1100,6 +1114,11 @@ export default function GitActionsControl({
 
   const initAction = useVcsInitAction(sourceControlScope);
   const runImmediateGitAction = useGitStackedAction(sourceControlScope);
+  const launchCommitPushTask = useAtomCommand(gitEnvironment.launchCommitPushTask, {
+    label: "commit task launch",
+    reportFailure: false,
+  });
+  const navigate = useNavigate();
   const pullAction = useVcsPullAction(sourceControlScope);
   const isGitActionRunning = useSourceControlActionRunning(
     sourceControlScope,
@@ -1212,6 +1231,7 @@ export default function GitActionsControl({
     statusOverride,
     featureBranch = false,
     filePaths,
+    fromQuickAction = false,
   }: RunGitActionWithToastInput) {
     if (
       activeEnvironmentId === null ||
@@ -1249,6 +1269,7 @@ export default function GitActionsControl({
         ...(commitMessage ? { commitMessage } : {}),
         ...(onConfirmed ? { onConfirmed } : {}),
         ...(filePaths ? { filePaths } : {}),
+        ...(fromQuickAction ? { fromQuickAction } : {}),
       });
       return;
     }
@@ -1256,6 +1277,23 @@ export default function GitActionsControl({
     setInlineSuccess(null);
 
     const scopedToastData = threadToastData ? { ...threadToastData } : undefined;
+    const taskProjectId = activeServerThread?.projectId ?? activeDraftThread?.projectId ?? null;
+    const taskAction = fromQuickAction
+      ? resolveCommitPushTaskAction({
+          action,
+          hasWorkingTreeChanges: actionStatus?.hasWorkingTreeChanges ?? false,
+          canLaunchThreads:
+            taskProjectId !== null &&
+            readEnvironmentScope(activeEnvironmentId, AuthOrchestrationOperateScope),
+          commitMessage,
+          filePaths,
+          featureBranch,
+        })
+      : null;
+    if (taskAction !== null && taskProjectId !== null) {
+      await startCommitPushTask(activeEnvironmentId, taskProjectId, taskAction, scopedToastData);
+      return;
+    }
     const actionId = randomUUID();
 
     const result = await runImmediateGitAction.run({
@@ -1359,17 +1397,81 @@ export default function GitActionsControl({
     }
   }
 
+  async function startCommitPushTask(
+    environmentId: ScopedThreadRef["environmentId"],
+    projectId: ProjectId,
+    action: GitCommitPushTaskAction,
+    toastData: { readonly threadRef: ScopedThreadRef } | undefined,
+  ) {
+    const result = await launchCommitPushTask({
+      environmentId,
+      input: {
+        commandId: CommandId.make(randomUUID()),
+        projectId,
+        action,
+        creationSource: "web",
+        ...(activeServerThread
+          ? { threadId: activeServerThread.id }
+          : {
+              ...(activeDraftThread?.worktreePath
+                ? { worktreePath: activeDraftThread.worktreePath }
+                : {}),
+              ...(activeDraftThread?.branch ? { branch: activeDraftThread.branch } : {}),
+            }),
+      },
+    });
+    if (result._tag === "Failure") {
+      if (isAtomCommandInterrupted(result)) return;
+      const error = squashAtomCommandFailure(result);
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: "Couldn't start the commit task",
+          description: error instanceof Error ? error.message : "An error occurred.",
+          timeout: resolveGitActionResultToastTiming("error").timeout,
+          ...(toastData !== undefined ? { data: toastData } : {}),
+        }),
+      );
+      return;
+    }
+    const taskThreadRef = scopeThreadRef(environmentId, result.value.threadId);
+    const toastId = toastManager.add(
+      stackedThreadToast({
+        type: "info",
+        title:
+          action === "commit_push_pr"
+            ? `Committing, pushing & opening a ${changeRequestTerminology.shortLabel}`
+            : "Committing & pushing",
+        description: "An agent is handling it in a background task that closes when it's done.",
+        timeout: resolveGitActionResultToastTiming("success").timeout,
+        actionProps: {
+          children: "View task",
+          onClick: () => {
+            toastManager.close(toastId);
+            void navigate({
+              to: "/$environmentId/$threadId",
+              params: buildThreadRouteParams(taskThreadRef),
+            });
+          },
+        },
+        ...(toastData !== undefined ? { data: toastData } : {}),
+      }),
+    );
+  }
+
   const continuePendingDefaultBranchAction = (featureBranch: boolean) => {
     if (!pendingDefaultBranchAction || !canWriteSourceControl) return;
     if (featureBranch && (!canChangeThreadBranch || featureBranchUnavailableReason !== null))
       return;
-    const { action, commitMessage, onConfirmed, filePaths } = pendingDefaultBranchAction;
+    const { action, commitMessage, onConfirmed, filePaths, fromQuickAction } =
+      pendingDefaultBranchAction;
     setPendingDefaultBranchAction(null);
     void runGitActionWithToast({
       action,
       ...(commitMessage ? { commitMessage } : {}),
       ...(onConfirmed ? { onConfirmed } : {}),
       ...(filePaths ? { filePaths } : {}),
+      ...(fromQuickAction ? { fromQuickAction } : {}),
       featureBranch,
       skipDefaultBranchPrompt: true,
     });
@@ -1456,7 +1558,7 @@ export default function GitActionsControl({
       return;
     }
     if (quickAction.action) {
-      void runGitActionWithToast({ action: quickAction.action });
+      void runGitActionWithToast({ action: quickAction.action, fromQuickAction: true });
     }
   };
 

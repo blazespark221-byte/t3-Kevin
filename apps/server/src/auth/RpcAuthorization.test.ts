@@ -4,7 +4,9 @@ import {
   AuthFilesystemReadScope,
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
+  CommandId,
   DEFAULT_SERVER_SETTINGS,
+  ProjectId,
   ProviderInstanceId,
   ThreadId,
   AuthOrchestrationOperateScope,
@@ -229,6 +231,42 @@ it.effect("requires task permission before attaching a prepared worktree to a th
         reference: "42",
         mode: "worktree",
         threadId: ThreadId.make("thread"),
+      }).pipe(Effect.flip),
+    ).toMatchObject({ requiredPermission: AuthOrchestrationOperateScope });
+    expect(handled).toBe(false);
+  }).pipe(Effect.scoped),
+);
+
+it.effect("requires task permission before a commit task launches an agent thread", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<
+          keyof typeof RPC_REQUIRED_SCOPES,
+          typeof WS_METHODS.gitLaunchCommitPushTask
+        > => tag !== WS_METHODS.gitLaunchCommitPushTask,
+      ),
+    );
+    let handled = false;
+    const client = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          group.toLayerHandler(WS_METHODS.gitLaunchCommitPushTask, () =>
+            Effect.sync(() => {
+              handled = true;
+            }).pipe(Effect.andThen(Effect.never)),
+          ),
+          RpcAuthorization.layer([AuthSourceControlWriteScope]),
+        ),
+      ),
+    );
+    expect(
+      yield* client[WS_METHODS.gitLaunchCommitPushTask]({
+        commandId: CommandId.make("command"),
+        projectId: ProjectId.make("project"),
+        action: "commit_push",
       }).pipe(Effect.flip),
     ).toMatchObject({ requiredPermission: AuthOrchestrationOperateScope });
     expect(handled).toBe(false);

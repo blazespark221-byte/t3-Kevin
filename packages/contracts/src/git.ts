@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import {
+  CommandId,
   ForwardCompatibleOptional,
   NonNegativeInt,
   PositiveInt,
@@ -8,6 +9,7 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
+import { OrchestrationV2CreationSource } from "./orchestrationV2.ts";
 import { SourceControlProviderError, SourceControlProviderInfo } from "./sourceControl.ts";
 import { VcsDriverKind } from "./vcs.ts";
 
@@ -134,6 +136,30 @@ export const GitRunStackedActionInput = Schema.Struct({
   projectId: Schema.optional(ProjectId),
 });
 export type GitRunStackedActionInput = typeof GitRunStackedActionInput.Type;
+
+export const GitCommitPushTaskAction = Schema.Literals(["commit_push", "commit_push_pr"]);
+export type GitCommitPushTaskAction = typeof GitCommitPushTaskAction.Type;
+
+/**
+ * Hands a commit-and-push to an agent thread in the same checkout. With
+ * `threadId` the task inherits that thread's checkout and model; a draft sends
+ * its checkout and runs on the project's default model.
+ */
+export const GitLaunchCommitPushTaskInput = Schema.Struct({
+  commandId: CommandId,
+  projectId: ProjectId,
+  action: GitCommitPushTaskAction,
+  threadId: Schema.optional(ThreadId),
+  worktreePath: Schema.optional(TrimmedNonEmptyStringSchema),
+  branch: Schema.optional(TrimmedNonEmptyStringSchema),
+  creationSource: Schema.optional(OrchestrationV2CreationSource),
+});
+export type GitLaunchCommitPushTaskInput = typeof GitLaunchCommitPushTaskInput.Type;
+
+export const GitLaunchCommitPushTaskResult = Schema.Struct({
+  threadId: ThreadId,
+});
+export type GitLaunchCommitPushTaskResult = typeof GitLaunchCommitPushTaskResult.Type;
 
 export const VcsListRefsInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
