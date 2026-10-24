@@ -12,7 +12,7 @@ import {
   useRouter,
 } from "@tanstack/react-router";
 import { Check, Copy } from "lucide";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 
 import { APP_BASE_NAME, APP_DISPLAY_NAME, APP_STAGE_LABEL, APP_VERSION } from "../branding";
 import { resolveServerBackedAppDisplayName } from "../branding.logic";
@@ -57,6 +57,12 @@ import { isElectron } from "../env";
 import { cn } from "../lib/utils";
 import { applyAppearanceFontVariables } from "~/appearanceFonts";
 import { applyAppearanceContrast } from "~/appearanceContrast";
+import {
+  applyLiquidGlassMode,
+  readReducedTransparency,
+  resolveLiquidGlassMode,
+  subscribeToReducedTransparency,
+} from "~/liquidGlass";
 import { useClientSettings } from "../hooks/useSettings";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -294,6 +300,27 @@ function ContrastAppearanceSync() {
 
 function GlassAppearanceSync() {
   const glassOpacity = useClientSettings((settings) => settings.glassOpacity);
+  const liquidGlassEnabled = useClientSettings((settings) => settings.liquidGlassEnabled);
+  const reducedTransparency = useSyncExternalStore(
+    subscribeToReducedTransparency,
+    readReducedTransparency,
+    () => false,
+  );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    applyLiquidGlassMode(
+      root,
+      resolveLiquidGlassMode({
+        enabled: liquidGlassEnabled,
+        reducedTransparency,
+        desktopPlatform: window.desktopBridge?.getClientPlatform?.() ?? null,
+      }),
+    );
+    // Routes outside the app shell (pairing, sign-in) paint no sidebar pane,
+    // so they must not inherit the cleared native backgrounds.
+    return () => applyLiquidGlassMode(root, null);
+  }, [liquidGlassEnabled, reducedTransparency]);
 
   useEffect(() => {
     const style = document.documentElement.style;
