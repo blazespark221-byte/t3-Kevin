@@ -87,6 +87,20 @@ can still be started by you. Invoke those one per message: Claude directly runs
 only the last named skill and may try to start earlier ones through its Skill
 tool, which refuses skills reserved for manual invocation.
 
+## Connectors, skills and plugins
+
+Settings → Connectors & Skills lists Claude's MCP servers (claude.ai connectors,
+your own servers, and servers from plugins) with their live status, plus its
+skills and plugins. Opening the page starts every MCP server once to read its
+status; the refresh button checks again.
+
+The switches change Claude's own settings file in its config directory, so
+Claude Code outside T3 Code follows them too. A plugin's skills turn on and off
+with the plugin. claude.ai connectors are added and removed on claude.ai, and a
+server marked "Needs sign-in" is signed in to from claude.ai or with `/mcp` in
+Claude Code. A settings file with comments or trailing commas is left alone;
+remove them to let T3 Code change it.
+
 ## Task lists
 
 To show Claude task lists in the web and desktop apps, add

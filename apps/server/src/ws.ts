@@ -240,6 +240,7 @@ import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as SourceControlDiscovery from "./sourceControl/SourceControlDiscovery.ts";
+import * as ProviderExtensions from "./provider/ProviderExtensions.ts";
 import * as OtlpEndpointCheck from "./observability/OtlpEndpointCheck.ts";
 import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
 import * as SourceControlBuiltInDrivers from "./sourceControl/builtInDrivers.ts";
@@ -1343,6 +1344,7 @@ export const layerWsRpc = (
       );
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const sourceControlDiscovery = yield* SourceControlDiscovery.SourceControlDiscovery;
+      const providerExtensions = yield* ProviderExtensions.ProviderExtensions;
       const otlpEndpointCheck = yield* OtlpEndpointCheck.OtlpEndpointCheck;
       const sourceControlRepositories =
         yield* SourceControlRepositoryService.SourceControlRepositoryService;
@@ -2451,6 +2453,15 @@ export const layerWsRpc = (
             return ServerSettings.redactServerSettingsForClient(settings);
           }),
         [WS_METHODS.serverDiscoverSourceControl]: (_input) => sourceControlDiscovery.discover,
+        [WS_METHODS.providerExtensionsList]: (input) => providerExtensions.list(input),
+        [WS_METHODS.providerExtensionsSetConnectorEnabled]: (input) =>
+          providerExtensions.setConnectorEnabled(input).pipe(Effect.as({})),
+        [WS_METHODS.providerExtensionsSetSkillEnabled]: (input) =>
+          providerExtensions.setSkillEnabled(input).pipe(Effect.as({})),
+        [WS_METHODS.providerExtensionsSetPluginEnabled]: (input) =>
+          providerExtensions.setPluginEnabled(input).pipe(Effect.as({})),
+        [WS_METHODS.providerExtensionsUninstallPlugin]: (input) =>
+          providerExtensions.uninstallPlugin(input).pipe(Effect.as({})),
         [WS_METHODS.serverGetTraceDiagnostics]: (_input) =>
           TraceDiagnostics.readTraceDiagnostics({
             traceFilePath: config.serverTracePath,

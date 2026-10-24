@@ -1169,6 +1169,40 @@ export function createServerEnvironmentAtoms<R, E>(
           ),
         ),
     }),
+    // Listing starts every MCP server the provider has configured, and the
+    // server keeps that listing for minutes, so a mounted page reads it once.
+    providerExtensions: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:server:provider-extensions",
+      tag: WS_METHODS.providerExtensionsList,
+      staleTimeMs: 5 * 60_000,
+    }),
+    // Restarts every server; the page then re-reads `providerExtensions`.
+    refreshProviderExtensions: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:refresh-provider-extensions",
+      tag: WS_METHODS.providerExtensionsList,
+      concurrency: { mode: "singleFlight", key: ({ environmentId }) => environmentId },
+    }),
+    // One settings file holds every switch, so switches run one at a time.
+    setProviderConnectorEnabled: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:set-provider-connector-enabled",
+      tag: WS_METHODS.providerExtensionsSetConnectorEnabled,
+      concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
+    }),
+    setProviderSkillEnabled: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:set-provider-skill-enabled",
+      tag: WS_METHODS.providerExtensionsSetSkillEnabled,
+      concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
+    }),
+    setProviderPluginEnabled: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:set-provider-plugin-enabled",
+      tag: WS_METHODS.providerExtensionsSetPluginEnabled,
+      concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
+    }),
+    uninstallProviderPlugin: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:uninstall-provider-plugin",
+      tag: WS_METHODS.providerExtensionsUninstallPlugin,
+      concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
+    }),
     consumeResetCredit: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:consume-reset-credit",
       tag: WS_METHODS.providerConsumeResetCredit,
