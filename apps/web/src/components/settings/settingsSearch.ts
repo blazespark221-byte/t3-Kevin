@@ -220,6 +220,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["colors borders interface"],
   },
   {
+    id: "liquid-glass",
+    title: "Liquid glass",
+    to: "/settings/appearance",
+    searchTerms: ["frosted translucent transparency vibrancy blur sidebar sheen"],
+  },
+  {
     // Prefixed because the slider control already owns the `glass-opacity` id.
     id: "setting-glass-opacity",
     title: "Glass opacity",

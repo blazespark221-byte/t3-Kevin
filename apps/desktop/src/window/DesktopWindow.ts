@@ -34,6 +34,7 @@ import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import { makeQuitShortcutHandler } from "./QuitHold.ts";
+import * as LiquidGlass from "./LiquidGlass.ts";
 import { copyContextMenuImage } from "./ContextMenuImage.ts";
 
 const TITLEBAR_HEIGHT = 40;
@@ -134,7 +135,7 @@ function getIconOption(
 }
 
 function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
-  return shouldUseDarkColors ? "#0a0a0a" : "#ffffff";
+  return LiquidGlass.opaqueWindowBackgroundColor(shouldUseDarkColors);
 }
 
 type DisplayBounds = Pick<Electron.Rectangle, "x" | "y" | "width" | "height">;
@@ -255,13 +256,20 @@ function syncWindowAppearance(
   window: Electron.BrowserWindow,
   shouldUseDarkColors: boolean,
   platform: NodeJS.Platform,
+  liquidGlassEnabled: boolean,
 ): Effect.Effect<void> {
   return Effect.sync(() => {
     if (window.isDestroyed()) {
       return;
     }
 
-    window.setBackgroundColor(getInitialWindowBackgroundColor(shouldUseDarkColors));
+    window.setBackgroundColor(
+      LiquidGlass.resolveLiquidGlassBackgroundColor({
+        platform,
+        enabled: liquidGlassEnabled,
+        opaqueBackgroundColor: getInitialWindowBackgroundColor(shouldUseDarkColors),
+      }),
+    );
     const { titleBarOverlay } = getWindowTitleBarOptions(shouldUseDarkColors, platform);
     if (typeof titleBarOverlay === "object") {
       window.setTitleBarOverlay(titleBarOverlay);
@@ -307,6 +315,12 @@ export const make = Effect.gen(function* () {
   const runFork = Effect.runForkWith(context);
   const runPromise = Effect.runPromiseWith(context);
   let flushMainWindowBounds: Effect.Effect<void> = Effect.void;
+  // An unreadable settings file falls back to the default rather than
+  // blocking the window; the web layer reports the read failure itself.
+  const readLiquidGlassEnabled = clientSettings.get.pipe(
+    Effect.map(LiquidGlass.isLiquidGlassEnabled),
+    Effect.orElseSucceed(() => LiquidGlass.isLiquidGlassEnabled(Option.none())),
+  );
 
   const dismissConnectingSplash = Effect.gen(function* () {
     const splash = yield* Ref.getAndSet(splashWindowRef, Option.none());
@@ -357,6 +371,7 @@ export const make = Effect.gen(function* () {
     const iconPaths = yield* assets.iconPaths;
     const iconOption = getIconOption(iconPaths, environment.platform);
     const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
+    const liquidGlassEnabled = yield* readLiquidGlassEnabled;
     const persistedSettings = yield* desktopSettings.get;
     const persistedBounds = persistedSettings.mainWindowBounds;
     const displayBoundsResult = yield* Effect.sync(() => {
@@ -388,7 +403,11 @@ export const make = Effect.gen(function* () {
       show: false,
       autoHideMenuBar: true,
       ...(environment.platform === "darwin" ? { disableAutoHideCursor: true } : {}),
-      backgroundColor: getInitialWindowBackgroundColor(shouldUseDarkColors),
+      ...LiquidGlass.resolveLiquidGlassWindowOptions({
+        platform: environment.platform,
+        enabled: liquidGlassEnabled,
+        opaqueBackgroundColor: getInitialWindowBackgroundColor(shouldUseDarkColors),
+      }),
       ...iconOption,
       title: environment.displayName,
       ...getWindowTitleBarOptions(shouldUseDarkColors, environment.platform),
@@ -1045,8 +1064,17 @@ export const make = Effect.gen(function* () {
     }),
     syncAppearance: Effect.gen(function* () {
       const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
+      const liquidGlassEnabled = yield* readLiquidGlassEnabled;
+      // Only the main window carries the material; any other window keeps an
+      // opaque background so it never turns see-through.
+      const main = Option.getOrNull(yield* electronWindow.main);
       yield* electronWindow.syncAllAppearance((window) =>
-        syncWindowAppearance(window, shouldUseDarkColors, environment.platform),
+        syncWindowAppearance(
+          window,
+          shouldUseDarkColors,
+          environment.platform,
+          liquidGlassEnabled && window === main,
+        ),
       );
     }).pipe(Effect.withSpan("desktop.window.syncAppearance")),
   });

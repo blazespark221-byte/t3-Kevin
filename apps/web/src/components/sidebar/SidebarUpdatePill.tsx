@@ -451,7 +451,7 @@ function SidebarUpdateControl() {
         isInteractionDisabled ? "cursor-not-allowed" : "cursor-pointer",
         showUpdateIconState
           ? cn(
-              "bg-sidebar-control-surface text-sidebar-foreground",
+              "sidebar-pill-glass bg-sidebar-control-surface text-sidebar-foreground",
               !isInteractionDisabled && "hover:bg-sidebar-row-hover",
             )
           : cn(

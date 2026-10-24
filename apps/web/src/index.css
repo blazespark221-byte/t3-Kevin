@@ -336,7 +336,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 @utility surface-glass {
-  background: color-mix(in srgb, var(--background) var(--glass-opacity), transparent);
+  background:
+    var(--glass-sheen, none),
+    color-mix(in srgb, var(--background) var(--glass-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
 
@@ -345,9 +347,16 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
+/* Sidebar pills sit on the sidebar's own glass; with liquid glass on they pick
+   up the same sheen as the floating surfaces, otherwise this is a no-op. */
+@utility sidebar-pill-glass {
+  background-image: var(--glass-sheen, none);
+}
+
 @utility alert-glass {
   --alert-glass-tint: transparent;
   background:
+    var(--glass-sheen, none),
     linear-gradient(
       color-mix(in srgb, var(--alert-glass-tint) 4%, transparent),
       color-mix(in srgb, var(--alert-glass-tint) 4%, transparent)
@@ -397,14 +406,21 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 @utility dialog-glass {
-  background: color-mix(in srgb, var(--background) var(--glass-opacity), transparent);
+  background:
+    var(--glass-sheen, none),
+    color-mix(in srgb, var(--background) var(--glass-opacity), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   border-color: color-mix(in srgb, var(--contrast-foreground) 10%, transparent);
+  border-top-color: var(
+    --glass-rim,
+    color-mix(in srgb, var(--contrast-foreground) 10%, transparent)
+  );
   box-shadow: 0 24px 64px -24px rgb(0 0 0 / 65%);
 
   @variant dark {
     border-color: color-mix(in srgb, var(--color-white) 8%, transparent);
+    border-top-color: var(--glass-rim, color-mix(in srgb, var(--color-white) 8%, transparent));
     box-shadow:
       inset 0 1px rgb(255 255 255 / 4%),
       0 24px 72px -20px rgb(0 0 0 / 90%);
@@ -426,14 +442,20 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 @utility dropdown-glass {
-  background: color-mix(
-    in srgb,
-    var(--popover) 18%,
-    color-mix(in srgb, var(--popover) var(--glass-opacity), transparent)
-  );
+  background:
+    var(--glass-sheen, none),
+    color-mix(
+      in srgb,
+      var(--popover) 18%,
+      color-mix(in srgb, var(--popover) var(--glass-opacity), transparent)
+    );
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
   border: 1px solid color-mix(in srgb, var(--contrast-foreground) 10%, transparent);
+  border-top-color: var(
+    --glass-rim,
+    color-mix(in srgb, var(--contrast-foreground) 10%, transparent)
+  );
 
   @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     background: var(--popover) !important;
@@ -2473,4 +2495,179 @@ code {
       );
     }
   }
+}
+
+/* Liquid glass (Settings -> Appearance). __root.tsx sets data-liquid-glass on
+   the root: "native" when the macOS desktop window paints sidebar vibrancy
+   behind the page, "tinted" everywhere else. The sidebar is the glass; the
+   content pane stays a solid rounded sheet on it, and only small floating
+   surfaces (menus, dialogs, toasts, the composer, sidebar pills) gain a sheen
+   and a lit top rim. Blur radii stay at the stock --glass-blur, so no surface
+   costs more to composite than it does with the setting off.
+
+   Unlayered on purpose: these must outrank the sidebar's own utilities and the
+   theme blocks above, whatever their specificity. */
+:root[data-liquid-glass] {
+  --glass-saturation: 1.7;
+  --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 22%), rgb(255 255 255 / 0%) 55%);
+  --glass-rim: rgb(255 255 255 / 72%);
+  --liquid-glass-pane-radius: 0.875rem;
+  --liquid-glass-pane-edge: color-mix(
+    in srgb,
+    var(--appearance-contrast-target) calc(9% + var(--appearance-contrast-border-boost)),
+    transparent
+  );
+  --liquid-glass-pane-shadow: rgb(0 0 0 / 16%);
+
+  @variant dark {
+    --glass-saturation: 1.45;
+    --glass-sheen: linear-gradient(to bottom, rgb(255 255 255 / 6%), rgb(255 255 255 / 0%) 50%);
+    --glass-rim: rgb(255 255 255 / 13%);
+    --liquid-glass-pane-shadow: rgb(0 0 0 / 55%);
+  }
+}
+
+/* The page gives up its backgrounds so the window's material shows through
+   the sidebar. !important beats the inline colors useTheme syncs for the
+   browser chrome; the solid pane still feeds that sync. */
+:root[data-liquid-glass="native"],
+:root[data-liquid-glass="native"] body {
+  background-color: transparent !important;
+}
+
+/* Sidebar rows and controls become tints of the sidebar text color, so they
+   read on any material beneath instead of as opaque zinc blocks. */
+:root[data-liquid-glass] [data-app-sidebar] {
+  --liquid-glass-sidebar-fill: color-mix(in srgb, var(--sidebar) 76%, transparent);
+  --sidebar-control-surface: color-mix(in srgb, var(--sidebar-foreground) 6%, transparent);
+  --sidebar-row-hover: color-mix(in srgb, var(--sidebar-foreground) 6%, transparent);
+  --sidebar-row-active: color-mix(in srgb, var(--sidebar-foreground) 10%, transparent);
+  --sidebar-row-selected: color-mix(in srgb, var(--color-white) 62%, transparent);
+  /* The pane's own edge separates the two surfaces; a transparent border
+     would leave an untinted 1px seam over the material instead. */
+  border-inline-end-width: 0;
+
+  @variant dark {
+    --sidebar-row-selected: color-mix(in srgb, var(--color-white) 9%, transparent);
+  }
+}
+
+/* Over native vibrancy only a light wash of the theme's sidebar color stays,
+   enough to keep custom palettes recognisable. */
+:root[data-liquid-glass="native"] [data-app-sidebar] {
+  --liquid-glass-sidebar-fill: color-mix(in srgb, var(--sidebar) 32%, transparent);
+
+  @variant dark {
+    --liquid-glass-sidebar-fill: color-mix(in srgb, var(--sidebar) 45%, transparent);
+  }
+}
+
+:root[data-liquid-glass="native"] [data-app-sidebar] [data-slot="sidebar-inner"] {
+  background-color: var(--liquid-glass-sidebar-fill);
+  background-image: none;
+}
+
+/* Without a native material, frost a static ambient wash instead: no
+   backdrop-filter, so the scrolling thread list never re-blurs. Both glows sit
+   on the left edge so the pane's corner wedges below match the right edge. */
+:root[data-liquid-glass="tinted"] [data-app-sidebar] [data-slot="sidebar-inner"] {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(var(--liquid-glass-sidebar-fill), var(--liquid-glass-sidebar-fill)),
+    radial-gradient(
+      130% 55% at 0% 0%,
+      color-mix(in srgb, var(--primary) 50%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      110% 45% at 0% 100%,
+      color-mix(in srgb, var(--primary) 30%, transparent),
+      transparent 72%
+    );
+}
+
+@media (min-width: 768px) {
+  /* The content pane is a solid sheet with rounded inner corners. */
+  :root[data-liquid-glass]
+    [data-slot="sidebar-wrapper"][data-sidebar-state="expanded"]
+    [data-slot="sidebar-inset"] {
+    border-start-start-radius: var(--liquid-glass-pane-radius);
+    border-end-start-radius: var(--liquid-glass-pane-radius);
+    box-shadow: -10px 0 30px -18px var(--liquid-glass-pane-shadow);
+  }
+
+  /* Drawn above the pane's children, which would otherwise cover an inset
+     shadow on the pane itself. */
+  :root[data-liquid-glass]
+    [data-slot="sidebar-wrapper"][data-sidebar-state="expanded"]
+    [data-slot="sidebar-inset"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    border-radius: inherit;
+    box-shadow: inset 1px 0 0 var(--liquid-glass-pane-edge);
+    pointer-events: none;
+  }
+
+  /* The pane's rounded corners leave two wedges outside the sidebar's box.
+     Paint them with the sidebar's own fill from the (higher) sidebar layer so
+     the glass reads as one continuous surface around the corners. */
+  :root[data-liquid-glass]
+    [data-slot="sidebar"][data-state="expanded"]
+    > [data-app-sidebar][data-slot="sidebar-container"]::before,
+  :root[data-liquid-glass]
+    [data-slot="sidebar"][data-state="expanded"]
+    > [data-app-sidebar][data-slot="sidebar-container"]::after {
+    content: "";
+    position: absolute;
+    left: 100%;
+    width: var(--liquid-glass-pane-radius);
+    height: var(--liquid-glass-pane-radius);
+    background: var(--liquid-glass-sidebar-fill);
+    pointer-events: none;
+  }
+
+  :root[data-liquid-glass="tinted"]
+    [data-slot="sidebar"][data-state="expanded"]
+    > [data-app-sidebar][data-slot="sidebar-container"]::before,
+  :root[data-liquid-glass="tinted"]
+    [data-slot="sidebar"][data-state="expanded"]
+    > [data-app-sidebar][data-slot="sidebar-container"]::after {
+    background:
+      linear-gradient(var(--liquid-glass-sidebar-fill), var(--liquid-glass-sidebar-fill)),
+      var(--background);
+  }
+
+  :root[data-liquid-glass]
+    [data-slot="sidebar"][data-state="expanded"]
+    > [data-app-sidebar][data-slot="sidebar-container"]::before {
+    top: 0;
+    mask: radial-gradient(
+      circle at 100% 100%,
+      transparent calc(var(--liquid-glass-pane-radius) - 0.5px),
+      black var(--liquid-glass-pane-radius)
+    );
+  }
+
+  :root[data-liquid-glass]
+    [data-slot="sidebar"][data-state="expanded"]
+    > [data-app-sidebar][data-slot="sidebar-container"]::after {
+    bottom: 0;
+    mask: radial-gradient(
+      circle at 100% 0%,
+      transparent calc(var(--liquid-glass-pane-radius) - 0.5px),
+      black var(--liquid-glass-pane-radius)
+    );
+  }
+}
+
+/* The composer already floats as frosted glass; give it the same sheen and
+   lit rim as the other floating surfaces. */
+:root[data-liquid-glass] [data-slot="composer-shell"]::before {
+  background-image: var(--glass-sheen);
+}
+
+:root[data-liquid-glass] [data-slot="composer-host"]::after {
+  border-top-color: var(--glass-rim);
 }

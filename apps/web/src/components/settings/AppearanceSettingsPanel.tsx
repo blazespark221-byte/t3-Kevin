@@ -153,6 +153,32 @@ export function AppearanceSettingsPanel() {
         />
 
         <SettingsRow
+          {...searchableSetting("liquid-glass")}
+          description="Show the sidebar as frosted glass and add a glass sheen to menus and the composer."
+          resetAction={
+            settings.liquidGlassEnabled !== DEFAULT_UNIFIED_SETTINGS.liquidGlassEnabled ? (
+              <SettingResetButton
+                label="liquid glass"
+                onClick={() =>
+                  updateSettings({
+                    liquidGlassEnabled: DEFAULT_UNIFIED_SETTINGS.liquidGlassEnabled,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Switch
+              checked={settings.liquidGlassEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ liquidGlassEnabled: Boolean(checked) })
+              }
+              aria-label="Liquid glass"
+            />
+          }
+        />
+
+        <SettingsRow
           {...searchableSetting("setting-glass-opacity")}
           description="Higher values make menus, dialogs, and the composer more solid."
           resetAction={

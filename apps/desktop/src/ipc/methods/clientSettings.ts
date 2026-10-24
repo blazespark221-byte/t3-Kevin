@@ -3,8 +3,12 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import * as DesktopEnvironment from "../../app/DesktopEnvironment.ts";
+import * as ElectronTheme from "../../electron/ElectronTheme.ts";
+import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import * as DesktopClientSettings from "../../settings/DesktopClientSettings.ts";
 import * as DesktopSnapShot from "../../snapShot/DesktopSnapShot.ts";
+import * as LiquidGlass from "../../window/LiquidGlass.ts";
 import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
 
@@ -25,7 +29,26 @@ export const setClientSettings = DesktopIpc.makeIpcMethod({
   handler: Effect.fn("desktop.ipc.clientSettings.set")(function* (settings) {
     const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
     const snapShot = yield* DesktopSnapShot.DesktopSnapShot;
+    // Every settings save lands here; touch the window material only when the
+    // liquid glass choice itself changed.
+    const previous = yield* clientSettings.get.pipe(Effect.orElseSucceed(() => Option.none()));
     yield* clientSettings.set(settings);
     yield* snapShot.configure(settings);
+    if (LiquidGlass.isLiquidGlassEnabled(previous) === settings.liquidGlassEnabled) return;
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    const electronTheme = yield* ElectronTheme.ElectronTheme;
+    const main = yield* (yield* ElectronWindow.ElectronWindow).main;
+    if (Option.isSome(main)) {
+      const opaqueBackgroundColor = LiquidGlass.opaqueWindowBackgroundColor(
+        yield* electronTheme.shouldUseDarkColors,
+      );
+      yield* Effect.sync(() =>
+        LiquidGlass.applyLiquidGlass(main.value, {
+          platform: environment.platform,
+          enabled: settings.liquidGlassEnabled,
+          opaqueBackgroundColor,
+        }),
+      );
+    }
   }),
 });
