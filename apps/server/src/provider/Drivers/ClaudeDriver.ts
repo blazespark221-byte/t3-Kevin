@@ -25,6 +25,7 @@ import { ProviderDriverError } from "../Errors.ts";
 import { claudeUsageReader } from "./claudeUsage.ts";
 import { makeClaudeScopedLimitNames } from "../claudeUsageLimits.ts";
 import * as ClaudeResetCredits from "../claudeResetCredits.ts";
+import * as ClaudeExtensions from "../ClaudeExtensions.ts";
 import * as ResetCreditCoordinator from "../resetCreditCoordinator.ts";
 import {
   checkClaudeProviderStatus,
@@ -384,6 +385,56 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       ),
     );
 
+    const extensionServices = <A, E>(
+      effect: Effect.Effect<
+        A,
+        E,
+        ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem | Path.Path
+      >,
+    ) =>
+      effect.pipe(
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, path),
+      );
+    // Claude Code's own one-line reason ("not found in marketplace") is what
+    // the user needs to see, so it becomes the detail.
+    const extensionError = (fallback: string) => (cause: { readonly message?: string }) =>
+      new ProviderDriverError({
+        driver: DRIVER_KIND,
+        instanceId,
+        detail: cause.message || fallback,
+        cause,
+      });
+    const cliInput = { settings: effectiveConfig, environment: processEnv, cwd: stateDir };
+    const extensions: NonNullable<ProviderInstance["extensions"]> = {
+      list: extensionServices(
+        ClaudeExtensions.listClaudeExtensions({
+          ...cliInput,
+          configDir,
+          globalConfigPath: accountConfigPath,
+        }),
+      ),
+      setConnectorEnabled: (input) =>
+        extensionServices(ClaudeExtensions.setClaudeConnectorEnabled({ configDir, ...input })).pipe(
+          Effect.mapError(extensionError("Claude Code's settings could not be changed.")),
+        ),
+      setSkillEnabled: (input) =>
+        extensionServices(ClaudeExtensions.setClaudeSkillEnabled({ configDir, ...input })).pipe(
+          Effect.mapError(extensionError("Claude Code's settings could not be changed.")),
+        ),
+      setPluginEnabled: (input) =>
+        extensionServices(ClaudeExtensions.setClaudePluginEnabled({ ...cliInput, ...input })).pipe(
+          Effect.timeout("60 seconds"),
+          Effect.mapError(extensionError("Claude Code could not change the plugin.")),
+        ),
+      uninstallPlugin: (input) =>
+        extensionServices(ClaudeExtensions.uninstallClaudePlugin({ ...cliInput, ...input })).pipe(
+          Effect.timeout("60 seconds"),
+          Effect.mapError(extensionError("Claude Code could not remove the plugin.")),
+        ),
+    };
+
     return {
       instanceId,
       driverKind: DRIVER_KIND,
@@ -407,6 +458,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       orchestrationAdapter,
       textGeneration,
       consumeResetCredit,
+      extensions,
     } satisfies ProviderInstance;
   }),
 };

@@ -39,6 +39,10 @@ const untrackedRpcAckMethods = new Set<string>([
 const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
   WS_METHODS.serverRefreshProviders,
+  // Listing starts every MCP server the provider has configured.
+  WS_METHODS.providerExtensionsList,
+  WS_METHODS.providerExtensionsSetPluginEnabled,
+  WS_METHODS.providerExtensionsUninstallPlugin,
   WS_METHODS.serverUpdateServer,
   WS_METHODS.vcsRefreshStatus,
 ]);

@@ -11,6 +11,7 @@ import type {
   ProviderDriverKind,
   ProviderInstanceEnvironment,
   ProviderInstanceId,
+  ProviderExtensionsSnapshot,
   ServerProvider,
   ServerProviderWorkspaceSnapshot,
 } from "@t3tools/contracts";
@@ -59,6 +60,12 @@ export interface ProviderInstance {
   readonly orchestrationAdapter: ProviderAdapter.ProviderAdapterV2["Service"];
   readonly textGeneration: ProviderTextGeneration;
   readonly auth?: ProviderAuthController;
+  /**
+   * The provider's own MCP servers, skills and plugins. Listing never fails:
+   * a part the provider could not report carries its error instead. Absent
+   * for providers T3 Code cannot manage these for.
+   */
+  readonly extensions?: ProviderExtensionsCapability;
   readonly acpSessionManagement?: {
     readonly listSessions: (input: {
       readonly cwd: string;
@@ -82,6 +89,32 @@ export interface ProviderInstance {
       readonly providerId: string;
     }) => Effect.Effect<void, AcpRegistryOperationError>;
   };
+}
+
+export type ProviderExtensionsListing = Omit<
+  ProviderExtensionsSnapshot,
+  "instanceId" | "driver" | "displayName"
+>;
+
+export interface ProviderExtensionsCapability {
+  readonly list: Effect.Effect<ProviderExtensionsListing>;
+  readonly setConnectorEnabled: (input: {
+    readonly name: string;
+    readonly enabled: boolean;
+  }) => Effect.Effect<void, ProviderDriverError>;
+  readonly setSkillEnabled: (input: {
+    readonly name: string;
+    readonly enabled: boolean;
+  }) => Effect.Effect<void, ProviderDriverError>;
+  readonly setPluginEnabled: (input: {
+    readonly pluginId: string;
+    readonly enabled: boolean;
+    readonly scope?: string | undefined;
+  }) => Effect.Effect<void, ProviderDriverError>;
+  readonly uninstallPlugin: (input: {
+    readonly pluginId: string;
+    readonly scope?: string | undefined;
+  }) => Effect.Effect<void, ProviderDriverError>;
 }
 
 export interface ProviderContinuationIdentity {

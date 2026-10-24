@@ -161,6 +161,15 @@ import {
   ProviderUploadFeedbackResult,
 } from "./provider.ts";
 import { ProviderInstanceId, ProviderInstanceMutation } from "./providerInstance.ts";
+import {
+  ProviderConnectorSetEnabledInput,
+  ProviderExtensionsError,
+  ProviderExtensionsListInput,
+  ProviderExtensionsListResult,
+  ProviderPluginSetEnabledInput,
+  ProviderPluginUninstallInput,
+  ProviderSkillSetEnabledInput,
+} from "./providerExtensions.ts";
 import { PullRequestReviewGuideResult } from "./pullRequestReviewGuide.ts";
 import {
   PullRequestActionInput,
@@ -412,6 +421,11 @@ export const WS_METHODS = {
   providerUploadFeedback: "provider.uploadFeedback",
   providerAuthStart: "provider.auth.start",
   providerConsumeResetCredit: "provider.consumeResetCredit",
+  providerExtensionsList: "provider.extensions.list",
+  providerExtensionsSetConnectorEnabled: "provider.extensions.setConnectorEnabled",
+  providerExtensionsSetSkillEnabled: "provider.extensions.setSkillEnabled",
+  providerExtensionsSetPluginEnabled: "provider.extensions.setPluginEnabled",
+  providerExtensionsUninstallPlugin: "provider.extensions.uninstallPlugin",
   providerAuthComplete: "provider.auth.complete",
   chatGptReconnectProfile: "provider.chatgpt.reconnect-profile",
   chatGptImportProfile: "provider.chatgpt.import-profile",
@@ -628,6 +642,53 @@ const WsServerUpdateProviderRpc = Rpc.make(WS_METHODS.serverUpdateProvider, {
 });
 
 const ProviderSetupRpcError = Schema.Union([ProviderSetupError, EnvironmentAuthorizationError]);
+
+const WsProviderExtensionsListRpc = Rpc.make(WS_METHODS.providerExtensionsList, {
+  payload: ProviderExtensionsListInput,
+  success: ProviderExtensionsListResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const ProviderExtensionsRpcError = Schema.Union([
+  ProviderExtensionsError,
+  EnvironmentAuthorizationError,
+]);
+
+const WsProviderExtensionsSetConnectorEnabledRpc = Rpc.make(
+  WS_METHODS.providerExtensionsSetConnectorEnabled,
+  {
+    payload: ProviderConnectorSetEnabledInput,
+    success: Schema.Struct({}),
+    error: ProviderExtensionsRpcError,
+  },
+);
+
+const WsProviderExtensionsSetSkillEnabledRpc = Rpc.make(
+  WS_METHODS.providerExtensionsSetSkillEnabled,
+  {
+    payload: ProviderSkillSetEnabledInput,
+    success: Schema.Struct({}),
+    error: ProviderExtensionsRpcError,
+  },
+);
+
+const WsProviderExtensionsSetPluginEnabledRpc = Rpc.make(
+  WS_METHODS.providerExtensionsSetPluginEnabled,
+  {
+    payload: ProviderPluginSetEnabledInput,
+    success: Schema.Struct({}),
+    error: ProviderExtensionsRpcError,
+  },
+);
+
+const WsProviderExtensionsUninstallPluginRpc = Rpc.make(
+  WS_METHODS.providerExtensionsUninstallPlugin,
+  {
+    payload: ProviderPluginUninstallInput,
+    success: Schema.Struct({}),
+    error: ProviderExtensionsRpcError,
+  },
+);
 
 const WsProviderConsumeResetCreditRpc = Rpc.make(WS_METHODS.providerConsumeResetCredit, {
   payload: ProviderConsumeResetCreditInput,
@@ -1893,6 +1954,11 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
   WsServerUpdateProviderRpc,
+  WsProviderExtensionsListRpc,
+  WsProviderExtensionsSetConnectorEnabledRpc,
+  WsProviderExtensionsSetSkillEnabledRpc,
+  WsProviderExtensionsSetPluginEnabledRpc,
+  WsProviderExtensionsUninstallPluginRpc,
   WsProviderConsumeResetCreditRpc,
   WsProviderAuthStartRpc,
   WsProviderAuthCompleteRpc,
