@@ -13409,3 +13409,94 @@ describe("ClaudeAdapterV2 query message stream", () => {
     }),
   );
 });
+
+describe("ClaudeAdapterV2 chat threads", () => {
+  it.effect("opens a chat with only web tools, a chat prompt, and no t3-code server", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const idAllocator = yield* IdAllocator.IdAllocatorV2;
+        const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
+        const attachmentsDir = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "t3-claude-chat-",
+        });
+        const opened: Array<ClaudeAdapterV2.ClaudeAgentSdkQueryOptions> = [];
+        const adapter = yield* ClaudeAdapterV2.makeClaudeAdapterV2({
+          instanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+          settings: DEFAULT_CLAUDE_SETTINGS,
+          environment: {},
+          attachmentsDir,
+          fileSystem,
+          path: yield* Path.Path,
+          crypto: yield* Crypto.Crypto,
+          idAllocator,
+          queryRunner: {
+            allocateSessionId: Effect.succeed("native-thread-claude-chat"),
+            open: (input) =>
+              Effect.sync(() => {
+                opened.push(input.options);
+                return {
+                  messages: Stream.never,
+                  offer: () => Effect.void,
+                  setModel: () => Effect.void,
+                  applyFlagSettings: () => Effect.void,
+                  setPermissionMode: () => Effect.void,
+                  backgroundTasks: () => Effect.succeed(false),
+                  stopTask: () => Effect.void,
+                  interrupt: Effect.void,
+                  close: Effect.void,
+                };
+              }),
+            forkSession: () => Effect.die("unused"),
+            subagentLaunchToolUseId: () => Effect.succeed(null),
+            assertComplete: Effect.void,
+          },
+        });
+        const threadId = ThreadId.make("thread-claude-chat");
+        // A chat thread still gets an MCP session from the server; the adapter must not use it.
+        yield* mcpSessions.set({
+          environmentId: EnvironmentId.make("environment-claude-chat"),
+          threadId,
+          providerSessionId: "provider-session-claude-chat",
+          providerInstanceId: ClaudeAdapterV2.CLAUDE_DEFAULT_INSTANCE_ID,
+          endpoint: "http://127.0.0.1:1/mcp",
+          authorizationHeader: "Bearer test",
+          browserToolsAvailable: true,
+        });
+        const runtime = yield* adapter.openSession({
+          threadId,
+          providerSessionId: ProviderSessionId.make("provider-session-claude-chat"),
+          modelSelection: CLAUDE_TEST_MODEL_SELECTION,
+          runtimePolicy: CLAUDE_TEST_RUNTIME_POLICY,
+        });
+        const providerThread = yield* runtime.ensureThread({
+          threadId,
+          modelSelection: CLAUDE_TEST_MODEL_SELECTION,
+          runtimePolicy: CLAUDE_TEST_RUNTIME_POLICY,
+        });
+        const turnInput = makeClaudeTestTurnInput({
+          threadId,
+          providerThread,
+          now: yield* DateTime.now,
+          attemptId: RunAttemptId.make("attempt-claude-chat"),
+          text: "What's a good name for a cat?",
+          attachments: [],
+        });
+        yield* runtime.startTurn({
+          ...turnInput,
+          appThread: { ...turnInput.appThread, threadKind: "chat" },
+        });
+
+        const options = opened[0];
+        assert.deepEqual(options?.tools, [...ClaudeAdapterV2.CLAUDE_CHAT_TOOLS]);
+        assert.isString(options?.systemPrompt);
+        assert.include(String(options?.systemPrompt), "Chat mode");
+        assert.isUndefined(options?.mcpServers);
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
+    ),
+  );
+});

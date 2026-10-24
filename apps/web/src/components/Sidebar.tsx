@@ -96,6 +96,7 @@ import {
 } from "../threadSelectionStore";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
+import { useScratchProject } from "../hooks/useScratchProject";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
@@ -116,6 +117,7 @@ import {
   useAllEnvironmentProjectSnapshotsReady,
   useProjects,
   useServerConfigs,
+  useQuietThreadShell,
   useQuietThreadShells,
 } from "../state/entities";
 import { environmentPresentations } from "../state/presentation";
@@ -138,6 +140,8 @@ import {
 import {
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
+  sidebarThreadModeFor,
+  type SidebarThreadMode,
   buildBulkTitleRegenerationContextMenuItem,
   buildBulkUnpinContextMenuItem,
   deleteSelectedThreadEntries,
@@ -276,6 +280,8 @@ const SETTLED_TAIL_PAGE_COUNT = 25;
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
+const THREAD_MODE_KEY = "t3code:sidebar:thread-mode";
+const SidebarThreadModeSchema = Schema.Literals(["tasks", "chats"]);
 
 const inboxReturns = createInboxReturnTracker();
 
@@ -292,6 +298,7 @@ type SidebarOptimisticDrop = {
 
 interface SidebarThreadPartitionInput {
   readonly threads: readonly EnvironmentThreadShell[];
+  readonly threadMode: SidebarThreadMode;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
@@ -354,13 +361,20 @@ function routeThreadOnly(
 // possibly mutated and recompute them, and every dnd-kit input with them.
 function useSidebarThreads(input: {
   readonly projectScopeKey: string | null;
+  readonly threadMode: SidebarThreadMode;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly routeThreadRef: ScopedThreadRef | null;
 }) {
-  const { projectScopeKey, scopedProjectKeys, serverConfigs, optimisticDrop, routeThreadRef } =
-    input;
+  const {
+    projectScopeKey,
+    threadMode,
+    scopedProjectKeys,
+    serverConfigs,
+    optimisticDrop,
+    routeThreadRef,
+  } = input;
   const threads = useQuietThreadShells();
   const routeRowThreadKey =
     routeThreadRef === null
@@ -413,6 +427,7 @@ function useSidebarThreads(input: {
 
   const partition = partitionSidebarThreads({
     threads,
+    threadMode,
     scopedProjectKeys,
     serverConfigs,
     optimisticDrop,
@@ -506,9 +521,16 @@ function useSidebarThreads(input: {
 }
 
 function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
-  const { threads, scopedProjectKeys, serverConfigs, optimisticDrop, workingShelfEnabled } = input;
+  const {
+    threads,
+    threadMode,
+    scopedProjectKeys,
+    serverConfigs,
+    optimisticDrop,
+    workingShelfEnabled,
+  } = input;
   const preciseNow = new Date().toISOString();
-  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
+  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, threadMode);
   inboxReturns.observe(workingShelfEnabled ? threads : null);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
@@ -839,6 +861,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     },
   });
   const newThreadContext = useHandleNewThread();
+  const { scratchEnvironmentId, startScratchChat } = useScratchProject();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
   const setSelectionAnchor = useThreadSelectionStore((s) => s.setAnchor);
@@ -905,6 +928,31 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const routeThreadRef = resolveActiveThreadRouteRef(routeTarget, routeDraftThread);
   const routeThreadKey = routeThreadRef ? scopedThreadKey(routeThreadRef) : null;
   const routeThreadKeyRef = useRef(routeThreadKey);
+  const [threadMode, setThreadMode] = useLocalStorage<SidebarThreadMode, SidebarThreadMode>(
+    THREAD_MODE_KEY,
+    "tasks",
+    SidebarThreadModeSchema,
+  );
+  const routeServerThread = useQuietThreadShell(
+    routeTarget?.kind === "server" ? routeTarget.threadRef : null,
+  );
+  const routeThreadMode =
+    routeTarget?.kind === "draft"
+      ? routeDraftThread === null
+        ? null
+        : sidebarThreadModeFor(routeDraftThread)
+      : routeServerThread === null
+        ? null
+        : sidebarThreadModeFor(routeServerThread);
+  // Opening a chat from anywhere (palette, link, history) shows the chat list,
+  // but only once per route, so the toggle still works while it stays open.
+  const followedRouteModeKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (routeThreadKey === null || routeThreadMode === null) return;
+    if (followedRouteModeKeyRef.current === routeThreadKey) return;
+    followedRouteModeKeyRef.current = routeThreadKey;
+    if (routeThreadMode !== threadMode) setThreadMode(routeThreadMode);
+  }, [routeThreadKey, routeThreadMode, setThreadMode, threadMode]);
 
   // A selection made under one scope can hold threads the next scope hides.
   const setProjectScopeKey = (key: string | null) => {
@@ -943,8 +991,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectScopeKey === null
       ? null
       : (projectGroups.find((project) => project.projectKey === projectScopeKey) ?? null);
+  // Chats all live in the Scratch project, so the project scope only narrows tasks.
   const scopedProjectKeys =
-    scopedProjectGroup === null
+    scopedProjectGroup === null || threadMode === "chats"
       ? null
       : new Set(
           scopedProjectGroup.memberProjectRefs.map(
@@ -979,6 +1028,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         continue;
       }
       if (!composerDraftHasUserContent(store.draftsByThreadKey[draftKey])) {
+        continue;
+      }
+      if (sidebarThreadModeFor(session) !== threadMode) {
         continue;
       }
       if (
@@ -1059,6 +1111,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     routeRowThreadKey,
   } = useSidebarThreads({
     projectScopeKey,
+    threadMode,
     scopedProjectKeys,
     serverConfigs,
     optimisticDrop,
@@ -1083,8 +1136,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (
       pendingKey !== null &&
       scopedProjectKeys !== null &&
-      filterSidebarV2VisibleThreads([thread], scopedProjectKeys).length === 0 &&
-      filterSidebarV2VisibleThreads([thread], null).length === 1
+      filterSidebarV2VisibleThreads([thread], scopedProjectKeys, threadMode).length === 0 &&
+      filterSidebarV2VisibleThreads([thread], null, threadMode).length === 1
     ) {
       // The row renders under the widened scope; scroll on that pass.
       setProjectScopeKey(null);
@@ -2622,6 +2675,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     openCommandPalette({ open: "new-thread-in" });
   };
 
+  const chatEnvironmentId =
+    scratchEnvironmentId(routeThreadRef?.environmentId ?? null) ??
+    scratchEnvironmentId(primaryEnvironmentId);
+  const handleNewChatClick = () => {
+    if (chatEnvironmentId === null) return;
+    if (isMobile) setOpenMobile(false);
+    void startScratchChat(chatEnvironmentId);
+  };
+  const changeThreadMode = (mode: SidebarThreadMode) => {
+    clearSelection();
+    setThreadMode(mode);
+  };
+
   const newThreadShortcutLabel =
     shortcutLabelForCommand(keybindings, "chat.new") ??
     (projectGroups.length <= 1 ? shortcutLabelForCommand(keybindings, "chat.newLocal") : undefined);
@@ -2763,6 +2829,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               }
               onNewProject={openAddProjectCommandPalette}
               onNewThread={handleNewThreadClick}
+              threadMode={threadMode}
+              onThreadModeChange={changeThreadMode}
+              onNewChat={handleNewChatClick}
+              newChatDisabled={chatEnvironmentId === null}
+              newChatShortcutLabel={shortcutLabelForCommand(keybindings, "chat.newChat")}
               newThreadDisabled={projects.length === 0}
               newThreadShortcutLabel={newThreadShortcutLabel}
               newThreadInProjectShortcutLabel={newThreadInProjectShortcutLabel}
@@ -2999,6 +3070,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           projectByKey={projectByKey}
                           projectDisplayNameByKey={projectDisplayNameByKey}
                           scopedProjectKeys={scopedProjectKeys}
+                          threadMode={threadMode}
                           routeDraftId={routeDraftIdForRows}
                           onNavigateToDraft={navigateToDraft}
                           onDraftContextMenu={handleDraftContextMenu}
@@ -3156,7 +3228,21 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             settledThreads.length ===
             0 ? (
             <div className="flex flex-col items-center gap-2 px-2 py-6 text-center text-xs text-muted-foreground/60">
-              {projects.length === 0 ? (
+              {threadMode === "chats" ? (
+                <>
+                  <span>No chats yet</span>
+                  {chatEnvironmentId !== null ? (
+                    <button
+                      type="button"
+                      onClick={handleNewChatClick}
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-sidebar-border px-2.5 py-1 text-2xs font-medium text-sidebar-muted-foreground transition-colors hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+                    >
+                      <PlusIcon className="-mx-0.5 size-3" />
+                      New chat
+                    </button>
+                  ) : null}
+                </>
+              ) : projects.length === 0 ? (
                 <>
                   <span>No projects yet</span>
                   <button

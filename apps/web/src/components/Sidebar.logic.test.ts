@@ -7,6 +7,7 @@ import { AsyncResult } from "effect/reactivity";
 import {
   archiveSelectedThreadEntries,
   deleteSelectedThreadEntries,
+  filterSidebarV2VisibleThreads,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
@@ -200,6 +201,22 @@ describe("sidebar thread lineage helpers", () => {
     const loopA = subagentOf("thread-loop-a", ThreadId.make("thread-loop-b"));
     const loopB = subagentOf("thread-loop-b", loopA.id);
     expect(resolveSidebarRowThreadId(loopA.id, environmentId, [loopA, loopB])).toBe(loopA.id);
+  });
+});
+
+describe("filterSidebarV2VisibleThreads", () => {
+  it("lists chats and tasks apart, and both when no mode is given", () => {
+    const task = makeThreadFixture({ id: ThreadId.make("thread-task") });
+    const chat = {
+      ...makeThreadFixture({ id: ThreadId.make("thread-chat") }),
+      threadKind: "chat" as const,
+    };
+    const ids = (mode?: "tasks" | "chats") =>
+      filterSidebarV2VisibleThreads([task, chat], null, mode).map((thread) => thread.id);
+
+    expect(ids("tasks")).toEqual([task.id]);
+    expect(ids("chats")).toEqual([chat.id]);
+    expect(ids()).toEqual([task.id, chat.id]);
   });
 });
 

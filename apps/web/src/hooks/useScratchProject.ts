@@ -62,5 +62,21 @@ export function useScratchProject() {
     }
   };
 
-  return { scratchWorkspaceRootFor, scratchEnvironmentId, openScratchProject, startScratchThread };
+  // Chats live in the Scratch project so each gets its own folder with no repository.
+  const startScratchChat = async (environmentId: EnvironmentId) => {
+    const project = await openScratchProject(environmentId, "Could not start a chat");
+    if (project) {
+      await handleNewThread(scopeProjectRef(project.environmentId, project.id), {
+        threadKind: "chat",
+      }).catch((error: unknown) => reportScratchFailure("Could not start a chat", error));
+    }
+  };
+
+  return {
+    scratchWorkspaceRootFor,
+    scratchEnvironmentId,
+    openScratchProject,
+    startScratchThread,
+    startScratchChat,
+  };
 }

@@ -3,9 +3,15 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
-import { DEFAULT_SERVER_SETTINGS, type ScopedProjectRef, type ThreadId } from "@t3tools/contracts";
+import {
+  DEFAULT_SERVER_SETTINGS,
+  type OrchestrationV2ThreadKind,
+  type ScopedProjectRef,
+  type ThreadId,
+} from "@t3tools/contracts";
 import { useRouter } from "@tanstack/react-router";
 import {
+  chatDraftLogicalProjectKey,
   composerDraftHasUserContent,
   markPromotedDraftThreadByRef,
   type DraftId,
@@ -75,8 +81,11 @@ export function useNewThreadHandler() {
       envMode?: DraftThreadEnvMode;
       startFromOrigin?: boolean;
       replace?: boolean;
+      /** Opens a chat draft instead of a task draft; pass the Scratch project. */
+      threadKind?: OrchestrationV2ThreadKind;
     },
   ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
+    const chatDraft = options?.threadKind === "chat";
     const projects = readProjects();
     // Read at call time: every provider status push replaces the config map, and
     // subscribing would hand every sidebar row a new handler.
@@ -112,11 +121,12 @@ export function useNewThreadHandler() {
       ? (carrySourceComposer?.modelSelectionByProvider[composerActiveProvider] ?? null)
       : null;
     const carryModelSelection = composerModelSelection ?? carrySourceShell?.modelSelection ?? null;
-    const carryInteractionMode =
-      carrySourceComposer?.interactionMode ??
-      carrySourceShell?.interactionMode ??
-      carrySourceDraft?.interactionMode ??
-      null;
+    const carryInteractionMode = chatDraft
+      ? "default"
+      : (carrySourceComposer?.interactionMode ??
+        carrySourceShell?.interactionMode ??
+        carrySourceDraft?.interactionMode ??
+        null);
     const project = projects.find(
       (candidate) =>
         candidate.id === projectRef.projectId &&
@@ -167,9 +177,13 @@ export function useNewThreadHandler() {
         ),
       });
     };
-    const logicalProjectKey = project
+    const projectLogicalKey = project
       ? deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings)
       : scopedProjectKey(projectRef);
+    const logicalProjectKey = chatDraft
+      ? chatDraftLogicalProjectKey(projectLogicalKey)
+      : projectLogicalKey;
+    const kindOption = chatDraft ? { threadKind: "chat" as const } : {};
     const hasBranchOption = options?.branch !== undefined;
     const hasWorktreePathOption = options?.worktreePath !== undefined;
     const hasEnvModeOption = options?.envMode !== undefined;
@@ -276,6 +290,7 @@ export function useNewThreadHandler() {
           {
             threadId: emptyStoredDraftThread.threadId,
             ...workspaceContext,
+            ...kindOption,
             ...(!isDraftAlreadyOpen ? { runtimeMode: defaultRuntimeMode } : {}),
             ...(carryInteractionMode ? { interactionMode: carryInteractionMode } : {}),
           },
@@ -317,6 +332,7 @@ export function useNewThreadHandler() {
       }
       setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, currentRouteTarget.draftId, {
         threadId: latestActiveDraftThread.threadId,
+        ...kindOption,
         createdAt: latestActiveDraftThread.createdAt,
         runtimeMode: latestActiveDraftThread.runtimeMode,
         interactionMode: latestActiveDraftThread.interactionMode,
@@ -348,6 +364,7 @@ export function useNewThreadHandler() {
       ) {
         setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, racedDraft.draftId, {
           threadId: racedDraft.threadId,
+          ...kindOption,
           createdAt: racedDraft.createdAt,
           runtimeMode: racedDraft.runtimeMode,
           interactionMode: racedDraft.interactionMode,
@@ -362,6 +379,7 @@ export function useNewThreadHandler() {
       }
       setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
         threadId,
+        ...kindOption,
         createdAt,
         branch: options?.branch ?? null,
         worktreePath: options?.worktreePath ?? null,

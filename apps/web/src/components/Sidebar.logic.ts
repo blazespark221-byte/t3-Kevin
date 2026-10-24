@@ -536,16 +536,30 @@ export function resolveSidebarRowThreadId(
   return thread?.id ?? threadId;
 }
 
+/** The sidebar lists agent tasks or chats, never both at once. */
+export type SidebarThreadMode = "tasks" | "chats";
+
+export function sidebarThreadModeFor(thread: {
+  readonly threadKind?: "chat" | undefined;
+}): SidebarThreadMode {
+  return thread.threadKind === "chat" ? "chats" : "tasks";
+}
+
 export function filterSidebarV2VisibleThreads<
-  T extends Pick<SidebarThreadSummary, "archivedAt" | "lineage"> & {
+  T extends Pick<SidebarThreadSummary, "archivedAt" | "lineage" | "threadKind"> & {
     environmentId: string;
     projectId: string;
   },
->(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null): T[] {
+>(
+  threads: readonly T[],
+  scopedProjectKeys: ReadonlySet<string> | null,
+  mode?: SidebarThreadMode,
+): T[] {
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
       !isSidebarSubagentThread(thread) &&
+      (mode === undefined || sidebarThreadModeFor(thread) === mode) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );

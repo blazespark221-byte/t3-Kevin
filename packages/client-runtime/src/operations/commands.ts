@@ -13,6 +13,7 @@ import {
   type NodeId,
   type OrchestrationV2Command,
   type OrchestrationV2CreationSource,
+  type OrchestrationV2ThreadKind,
   type PlanId,
   type ProjectId,
   type ProjectIconOverride,
@@ -144,6 +145,7 @@ interface StartThreadBootstrap {
     readonly modelSelection: ModelSelection;
     readonly runtimeMode: RuntimeMode;
     readonly interactionMode: ProviderInteractionMode;
+    readonly threadKind?: OrchestrationV2ThreadKind | undefined;
     readonly branch: string | null;
     readonly worktreePath: string | null;
     readonly createdAt: string;
@@ -675,6 +677,7 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
       modelSelection: input.modelSelection ?? thread.modelSelection,
       runtimeMode: input.runtimeMode,
       interactionMode: input.interactionMode,
+      ...(bootstrap?.threadKind === undefined ? {} : { threadKind: bootstrap.threadKind }),
       workspaceStrategy,
       initialMessage: {
         messageId: input.message.messageId,

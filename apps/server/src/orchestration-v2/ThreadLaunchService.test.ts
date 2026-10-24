@@ -972,6 +972,26 @@ it.effect("launches a worktree request for Scratch at the root, in its own folde
   }).pipe(Effect.provide(harness.layer));
 });
 
+it.effect("launches a chat into its own Scratch folder and keeps it a chat", () => {
+  const harness = scratchHarness();
+  return Effect.gen(function* () {
+    const launches = yield* ThreadLaunch.ThreadLaunchService;
+    const launched = yield* launches.launch({
+      ...launchInput({
+        command: "command:launch:scratch-chat",
+        thread: "thread:launch:scratch-chat",
+        message: "What should I cook tonight?",
+      }),
+      threadKind: "chat",
+    });
+    const chat = yield* preparationSettled(launched.threadId);
+    assert.equal(chat.thread.threadKind, "chat");
+    assert.equal(chat.thread.worktreePath, "/scratch/folder-1");
+    const threads = yield* ThreadManagement.ThreadManagementService;
+    assert.equal((yield* threads.getThreadShell(launched.threadId))?.threadKind, "chat");
+  }).pipe(Effect.provide(harness.layer));
+});
+
 it.effect("stores a Scratch scheduled task at the root and keeps worktrees elsewhere", () => {
   const harness = scratchHarness();
   return Effect.gen(function* () {

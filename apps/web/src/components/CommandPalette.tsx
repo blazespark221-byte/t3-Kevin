@@ -56,6 +56,7 @@ import {
   FolderGit2Icon,
   FolderIcon,
   FolderPlusIcon,
+  MessageCircleIcon,
   MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
@@ -497,7 +498,8 @@ function OpenCommandPaletteDialog(props: {
   const createProject = useAtomCommand(projectEnvironment.create, {
     reportFailure: false,
   });
-  const { scratchEnvironmentId, scratchWorkspaceRootFor, startScratchThread } = useScratchProject();
+  const { scratchEnvironmentId, scratchWorkspaceRootFor, startScratchThread, startScratchChat } =
+    useScratchProject();
   const lookupRepository = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
   });
@@ -1233,6 +1235,15 @@ function OpenCommandPaletteDialog(props: {
       icon: <MessageSquareDashedIcon className={ITEM_ICON_CLASS} />,
       shortcutCommand: "chat.newWithoutProject",
       run: () => startScratchThread(scratchTargetEnvironmentId),
+    });
+    actionItems.push({
+      kind: "action",
+      value: "action:new-chat",
+      searchTerms: ["new chat", "chat", "conversation", "talk", "ask"],
+      title: "New chat",
+      icon: <MessageCircleIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "chat.newChat",
+      run: () => startScratchChat(scratchTargetEnvironmentId),
     });
   }
 
@@ -2325,7 +2336,8 @@ function OpenCommandPaletteDialog(props: {
       event.keyCode !== 229 &&
       (command === "chat.new" ||
         command === "chat.newLocal" ||
-        command === "chat.newWithoutProject");
+        command === "chat.newWithoutProject" ||
+        command === "chat.newChat");
     const matchingItem =
       isJump || isNewThread
         ? displayedGroups

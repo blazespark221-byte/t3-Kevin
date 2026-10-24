@@ -365,3 +365,17 @@ export function DraftHeroHeadline({
     </div>
   );
 }
+
+/** A chat has no project to pick, so its draft only invites the first message. */
+export function ChatHeroHeadline() {
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col items-center">
+      <h1 className="w-full text-center font-normal text-2xl text-foreground tracking-tight sm:text-3xl">
+        What's on your mind?
+      </h1>
+      <p className="mt-2 flex h-6 w-full items-center justify-center text-muted-foreground/70 text-sm">
+        A plain conversation, with no project or files
+      </p>
+    </div>
+  );
+}

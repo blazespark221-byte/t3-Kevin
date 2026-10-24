@@ -31,6 +31,16 @@ folder, so the files the agent wrote stay until you delete them. Branch, worktre
 these folders are not Git repositories. This is unavailable when the data
 directory itself sits inside a Git checkout.
 
+### Chats
+
+For a plain conversation instead of an agent task, switch the sidebar to
+**Chats** and click **New chat**, pick **New chat** in the command palette, or
+press `mod+alt+c`. A chat runs without a project and without coding tools: the
+agent cannot run commands or change files, though Claude can still search the
+web and use your connectors. Chats have their own list, so switching back to
+**Tasks** shows your agent threads again. Each chat gets its own folder under
+`~/.t3/scratch`, like a thread without a project.
+
 ### Start in the background
 
 In a desktop browser or the desktop app, press `Cmd+Enter` on macOS or `Ctrl+Enter`

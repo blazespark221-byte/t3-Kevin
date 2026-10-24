@@ -9,7 +9,11 @@ import {
 } from "react";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
-import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
+import {
+  resolveSidebarRowAccessibility,
+  sidebarThreadModeFor,
+  type SidebarThreadMode,
+} from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -141,6 +145,7 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   projectByKey: ReadonlyMap<string, EnvironmentProject>;
   projectDisplayNameByKey: ReadonlyMap<string, string>;
   scopedProjectKeys: ReadonlySet<string> | null;
+  threadMode: SidebarThreadMode;
   routeDraftId: string | null;
   onNavigateToDraft: (draftId: DraftId) => void;
   onDraftContextMenu: (draftId: DraftId, position: { x: number; y: number }) => void;
@@ -168,6 +173,9 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
     const rows: SidebarDraftRowData[] = [];
     for (const [draftKey, session] of Object.entries(draftThreadsByThreadKey)) {
       if (session.promotedTo != null) {
+        continue;
+      }
+      if (sidebarThreadModeFor(session) !== props.threadMode) {
         continue;
       }
       if (

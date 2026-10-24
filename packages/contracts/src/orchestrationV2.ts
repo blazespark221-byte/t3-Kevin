@@ -94,6 +94,14 @@ const OrchestrationV2CreationFields = {
   creationSource: OrchestrationV2CreationSource,
 } as const;
 
+/**
+ * A chat thread is a plain conversation rather than an agent task: it runs in
+ * its own Scratch folder and its provider gets no coding tools. Absent means
+ * an ordinary agent thread.
+ */
+export const OrchestrationV2ThreadKind = Schema.Literal("chat");
+export type OrchestrationV2ThreadKind = typeof OrchestrationV2ThreadKind.Type;
+
 export const OrchestrationV2NativeRefStrength = Schema.Literals(["strong", "weak", "none"]);
 export type OrchestrationV2NativeRefStrength = typeof OrchestrationV2NativeRefStrength.Type;
 
@@ -379,6 +387,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
+  threadKind: Schema.optional(OrchestrationV2ThreadKind),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
@@ -1820,6 +1829,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
+  threadKind: Schema.optional(OrchestrationV2ThreadKind),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
@@ -2593,6 +2603,7 @@ export const OrchestrationV2Command = Schema.Union([
     modelSelection: ModelSelection,
     runtimeMode: RuntimeMode,
     interactionMode: ProviderInteractionMode,
+    threadKind: Schema.optional(OrchestrationV2ThreadKind),
     branch: Schema.NullOr(TrimmedNonEmptyString),
     worktreePath: Schema.NullOr(TrimmedNonEmptyString),
     importedNativeThread: Schema.optional(
@@ -3186,6 +3197,7 @@ export const OrchestrationV2ThreadLaunchInput = Schema.Struct({
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
+  threadKind: Schema.optional(OrchestrationV2ThreadKind),
   workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
   initialMessage: Schema.optional(
     Schema.Struct({

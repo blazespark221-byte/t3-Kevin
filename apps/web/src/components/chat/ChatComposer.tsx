@@ -388,6 +388,8 @@ export interface ChatComposerProps {
   activeThreadEnvironmentId: EnvironmentId | undefined;
   activeThread: Thread | undefined;
   activeThreadShell: ThreadShell | null;
+  /** Chats have no plan mode to offer. */
+  isChatThread?: boolean;
   promptHistoryMessages: ReadonlyArray<ChatMessage>;
   isServerThread: boolean;
   isLocalDraftThread: boolean;
@@ -1017,7 +1019,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const selectedPromptEffort = composerProviderState.promptEffort;
   const selectedModelOptionsForDispatch = composerProviderState.modelOptionsForDispatch;
   const { enabled: planModeUiEnabled, interactionMode } = resolveComposerInteractionMode({
-    planModeEnabled: settings.planModeEnabled,
+    planModeEnabled: settings.planModeEnabled && props.isChatThread !== true,
     provider: selectedProviderStatus,
     interactionMode: requestedInteractionMode,
   });

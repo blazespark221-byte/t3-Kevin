@@ -6475,3 +6475,21 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     );
   });
 });
+
+describe("CodexAdapterV2 chat threads", () => {
+  it.effect("keeps a chat read-only and tells Codex it is a conversation", () =>
+    Effect.gen(function* () {
+      const params = yield* CodexAdapterV2.buildCodexTurnStartParams({
+        nativeThreadId: "native-chat",
+        codexInput: [{ type: "text", text: "Explain monads like I'm five." }],
+        runtimePolicy: { runtimeMode: "full-access", interactionMode: "default", cwd: null },
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+        chat: true,
+      });
+      assert.equal(params.approvalPolicy, "never");
+      assert.equal(params.sandboxPolicy?.type, "readOnly");
+      assert.equal(params.collaborationMode?.mode, "default");
+      assert.include(params.collaborationMode?.settings.developer_instructions ?? "", "Chat mode");
+    }),
+  );
+});

@@ -44,7 +44,7 @@ function ChatRouteGlobalShortcuts() {
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const projects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const { scratchEnvironmentId, startScratchThread } = useScratchProject();
+  const { scratchEnvironmentId, startScratchThread, startScratchChat } = useScratchProject();
   const projectGroupCount = buildSidebarProjectSnapshots({
     projects,
     settings: projectGroupingSettings,
@@ -108,6 +108,17 @@ function ChatRouteGlobalShortcuts() {
         event.preventDefault();
         event.stopPropagation();
         void startScratchThread(environmentId);
+        return;
+      }
+
+      if (command === "chat.newChat") {
+        const environmentId = scratchEnvironmentId(
+          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? primaryEnvironmentId,
+        );
+        if (environmentId === null) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void startScratchChat(environmentId);
         return;
       }
 
@@ -188,6 +199,7 @@ function ChatRouteGlobalShortcuts() {
     scratchEnvironmentId,
     selectedThreadKeysSize,
     startScratchThread,
+    startScratchChat,
     legacySidebarEnabled,
     terminalOpen,
   ]);

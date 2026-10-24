@@ -143,6 +143,7 @@ export interface EnvironmentThreadShell {
   readonly modelSelection: OrchestrationV2ThreadShell["modelSelection"];
   readonly runtimeMode: OrchestrationV2ThreadShell["runtimeMode"];
   readonly interactionMode: OrchestrationV2ThreadShell["interactionMode"];
+  readonly threadKind?: OrchestrationV2ThreadShell["threadKind"];
   readonly branch: string | null;
   readonly worktreePath: string | null;
   readonly lineage: OrchestrationV2ThreadShell["lineage"];
@@ -287,6 +288,7 @@ export function presentThreadShell(
     modelSelection: thread.modelSelection,
     runtimeMode: thread.runtimeMode,
     interactionMode: thread.interactionMode,
+    ...(thread.threadKind === undefined ? {} : { threadKind: thread.threadKind }),
     branch: thread.branch,
     worktreePath: thread.worktreePath,
     pullRequests: threadPullRequestsOf(thread),

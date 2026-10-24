@@ -163,7 +163,10 @@ import {
 import type { ManagedServerProvider } from "@t3tools/provider-core/server/snapshot";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import { T3_CODE_ORCHESTRATION_INSTRUCTIONS } from "@t3tools/provider-core/server/orchestrationInstructions";
-import { buildRuntimeInstructions } from "@t3tools/provider-core/server/runtimeInstructions";
+import {
+  buildRuntimeInstructions,
+  CHAT_MODE_INSTRUCTIONS,
+} from "@t3tools/provider-core/server/runtimeInstructions";
 import {
   mcpToolPresentation,
   normalizeMcpText,
@@ -464,6 +467,9 @@ export interface ClaudeAgentSdkQueryPresetTools {
 export type ClaudeAgentSdkQueryTools = ClaudeAgentSdkQueryToolList | ClaudeAgentSdkQueryPresetTools;
 
 export const CLAUDE_READ_ONLY_ALLOWED_TOOLS = ["Read", "Glob", "Grep"] as const;
+
+/** A chat thread can look things up but has no workspace to read or change. */
+export const CLAUDE_CHAT_TOOLS = ["WebSearch", "WebFetch"] as const;
 
 function claudeAgentSdkQueryToolsForSdk(
   tools: ClaudeAgentSdkQueryTools,
@@ -1314,6 +1320,8 @@ export function makeClaudeQueryOptions(input: {
   readonly supportedDialogKinds?: ClaudeQueryOptions["supportedDialogKinds"];
   readonly allowDangerouslySkipPermissions?: boolean;
   readonly appendSystemPromptFileText?: string;
+  /** Replaces the Claude Code system prompt with a conversational one. */
+  readonly chat?: boolean;
 }): ClaudeAgentSdkQueryOptions {
   const compiledSelection = compileClaudeModelSelection(input.modelSelection);
   const {
@@ -1402,15 +1410,18 @@ export function makeClaudeQueryOptions(input: {
       : {}),
     ...(input.environment === undefined ? {} : { env: input.environment }),
     ...(input.mcpServers === undefined ? {} : { mcpServers: input.mcpServers }),
-    systemPrompt: {
-      type: "preset" as const,
-      preset: "claude_code" as const,
-      append: [
-        buildRuntimeInstructions({ harness: "Claude Code" }) +
-          (input.mcpServers === undefined ? "" : T3_CODE_ORCHESTRATION_INSTRUCTIONS),
-        ...launchAppendSystemPrompt,
-      ].join("\n\n"),
-    },
+    systemPrompt:
+      input.chat === true
+        ? [CHAT_MODE_INSTRUCTIONS, ...launchAppendSystemPrompt].join("\n\n")
+        : {
+            type: "preset" as const,
+            preset: "claude_code" as const,
+            append: [
+              buildRuntimeInstructions({ harness: "Claude Code" }) +
+                (input.mcpServers === undefined ? "" : T3_CODE_ORCHESTRATION_INSTRUCTIONS),
+              ...launchAppendSystemPrompt,
+            ].join("\n\n"),
+          },
     ...(Object.keys(extraArgs).length === 0 ? {} : { extraArgs }),
   };
   const additionalDirectories = [
@@ -9189,8 +9200,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           nativeThreadId: string,
         ) {
           const queryPolicy = yield* queryPolicyForTurn(turnInput);
+          const chat = turnInput.appThread.threadKind === "chat";
+          // A chat has no orchestration to do, so it never gets the t3-code server.
           const mcpOverrides = claudeMcpQueryOverrides({
-            mcpSession: yield* mcpSessions.read(turnInput.threadId),
+            mcpSession: chat ? undefined : yield* mcpSessions.read(turnInput.threadId),
             readOnlySandbox:
               sandboxPolicyKindForClaudeRuntimePolicy(turnInput.runtimePolicy) === "readOnly",
             ...(queryPolicy.allowedTools === undefined
@@ -9312,7 +9325,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 ? yield* resolveSubagentPromptCacheTtl(turnInput.runtimePolicy.cwd)
                 : undefined,
             ),
-            tools: queryPolicy.tools ?? CLAUDE_CODE_PRESET_TOOLS,
+            tools: chat ? CLAUDE_CHAT_TOOLS : (queryPolicy.tools ?? CLAUDE_CODE_PRESET_TOOLS),
+            ...(chat ? { chat } : {}),
             ...(mcpOverrides.allowedTools === undefined
               ? {}
               : { allowedTools: mcpOverrides.allowedTools }),

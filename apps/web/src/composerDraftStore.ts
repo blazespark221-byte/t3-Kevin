@@ -9,6 +9,7 @@ import {
   ModelSelection,
   ProjectId,
   ProviderInstanceId,
+  OrchestrationV2ThreadKind,
   ProviderInteractionMode,
   ProviderDriverKind,
   ProviderOptionSelection,
@@ -316,6 +317,7 @@ const PersistedDraftThreadState = Schema.Struct({
   worktreePath: Schema.NullOr(Schema.String),
   envMode: DraftThreadEnvModeSchema,
   startFromOrigin: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  threadKind: Schema.optionalKey(OrchestrationV2ThreadKind),
   promotedTo: Schema.optionalKey(
     Schema.NullOr(
       Schema.Struct({
@@ -407,6 +409,8 @@ export interface DraftSessionState {
   worktreePath: string | null;
   envMode: DraftThreadEnvMode;
   startFromOrigin: boolean;
+  /** Chat drafts live under their own logical key; see `chatDraftLogicalProjectKey`. */
+  threadKind?: OrchestrationV2ThreadKind;
   promotedTo?: ScopedThreadRef | null;
 }
 
@@ -454,6 +458,7 @@ interface ComposerDraftStoreState {
       startFromOrigin?: boolean;
       runtimeMode?: RuntimeMode;
       interactionMode?: ProviderInteractionMode;
+      threadKind?: OrchestrationV2ThreadKind;
       environmentSelection?: "auto" | "manual";
       loadBalancedEnvironmentId?: EnvironmentId | null;
     },
@@ -1283,6 +1288,14 @@ function logicalProjectDraftKey(logicalProjectKey: string): string {
   return logicalProjectKey.trim();
 }
 
+/**
+ * A project keeps one draft per logical key, so a chat draft in the Scratch
+ * project gets a key of its own and never takes over that project's task draft.
+ */
+export function chatDraftLogicalProjectKey(logicalProjectKey: string): string {
+  return `${logicalProjectDraftKey(logicalProjectKey)}\u0000chat`;
+}
+
 export function composerTargetKey(target: ScopedThreadRef | DraftId): string {
   if (typeof target === "string") {
     return target.trim();
@@ -1412,6 +1425,7 @@ function createDraftThreadState(
     startFromOrigin?: boolean;
     runtimeMode?: RuntimeMode;
     interactionMode?: ProviderInteractionMode;
+    threadKind?: OrchestrationV2ThreadKind;
     environmentSelection?: "auto" | "manual";
     loadBalancedEnvironmentId?: EnvironmentId | null;
   },
@@ -1441,6 +1455,7 @@ function createDraftThreadState(
       : options.startFromOrigin;
   const environmentSelection =
     options?.environmentSelection ?? existingThread?.environmentSelection;
+  const threadKind = options?.threadKind ?? existingThread?.threadKind;
   return {
     threadId,
     environmentId: projectRef.environmentId,
@@ -1465,6 +1480,7 @@ function createDraftThreadState(
     envMode:
       options?.envMode ?? (nextWorktreePath ? "worktree" : (existingThread?.envMode ?? "local")),
     startFromOrigin: nextStartFromOrigin,
+    ...(threadKind === undefined ? {} : { threadKind }),
     promotedTo: null,
   };
 }
@@ -1499,6 +1515,7 @@ function draftThreadsEqual(left: DraftThreadState | undefined, right: DraftThrea
     left.worktreePath === right.worktreePath &&
     left.envMode === right.envMode &&
     left.startFromOrigin === right.startFromOrigin &&
+    left.threadKind === right.threadKind &&
     scopedThreadRefsEqual(left.promotedTo, right.promotedTo)
   );
 }
@@ -2386,6 +2403,9 @@ function toHydratedDraftThreadState(
     worktreePath: persistedDraftThread.worktreePath,
     envMode: persistedDraftThread.envMode,
     startFromOrigin: persistedDraftThread.startFromOrigin,
+    ...(persistedDraftThread.threadKind === undefined
+      ? {}
+      : { threadKind: persistedDraftThread.threadKind }),
     ...(persistedDraftThread.environmentSelection
       ? { environmentSelection: persistedDraftThread.environmentSelection }
       : {}),

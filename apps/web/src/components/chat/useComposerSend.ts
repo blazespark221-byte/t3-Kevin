@@ -1224,6 +1224,9 @@ export function useComposerSend(input: ComposerSendInput) {
                       modelSelection: threadCreateModelSelection,
                       runtimeMode,
                       interactionMode: sendInteractionMode,
+                      ...(draftThread?.threadKind === undefined
+                        ? {}
+                        : { threadKind: draftThread.threadKind }),
                       branch: activeThreadBranch,
                       worktreePath: activeThread.worktreePath,
                       createdAt: activeThread.createdAt,

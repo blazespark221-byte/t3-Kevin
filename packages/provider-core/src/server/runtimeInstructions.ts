@@ -25,3 +25,9 @@ export function buildRuntimeInstructions(runtime: {
 function toSingleLine(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
 }
+
+/**
+ * Chat threads are conversations, not agent tasks: the provider runs without
+ * coding tools, so it should answer instead of looking for a workspace.
+ */
+export const CHAT_MODE_INSTRUCTIONS = `You are chatting with the user in T3 Code's Chat mode. This is a regular conversation, not a coding task: there is no project, repository, terminal, or file editing here, so never offer to run commands or change files. Answer directly and conversationally, and use Markdown (headings, lists, tables, code blocks) when it makes an answer clearer. When a question needs current or outside information, use web search or web fetch. When the user asks about their own email, documents, calendar, or other accounts, use their connected tools if they are available.`;
